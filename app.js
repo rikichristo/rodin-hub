@@ -279,7 +279,7 @@ document.addEventListener("input",ev=>{
 document.addEventListener("submit",async ev=>{
   ev.preventDefault();
   if(ev.target.id==="loginForm"){ const btn=ev.target.querySelector("button"); btn.disabled=true; btn.textContent="Signing in…";
-    let u=$("#lgEmail").value.trim().toLowerCase(); if(!u.includes("@")) u+="@drivers.rikichristo.com";
+    let u=$("#lgEmail").value.trim().toLowerCase(); const ALIAS={riki:"riki@rikichristo.com"}; if(ALIAS[u]) u=ALIAS[u]; else if(!u.includes("@")) u+="@drivers.rikichristo.com";
     const {error}=await sb.auth.signInWithPassword({email:u,password:$("#lgPass").value});
     if(error){ $("#main").innerHTML=loginHTML("That username or password didn't match. Try again."); return; } boot(); }
   if(ev.target.id==="pwForm"){ const {error}=await sb.auth.updateUser({password:$("#pw1").value}); toast(error?"Couldn't change it: "+error.message:"Password changed."); if(!error) location.hash="#/"; }
