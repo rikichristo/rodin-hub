@@ -27,13 +27,17 @@ const FIELDS = {
     {t:"scale", id:"energy", l:"Sleep, food and energy this week (1–10)"},
   ],
   event: [
-    {t:"text", id:"runplan", l:"Run plan", h:"e.g. Fresh: OWPPPI · New: OWPPPCPI  (O out · W warm · P push · C cool · I in)"},
+    {t:"result", id:"result", l:"Result"},
     {t:"chips", id:"tyres", l:"Tyres", o:["New","Fresh","Used","Soft","Medium","Hard"]},
-    {t:"text", id:"best", l:"Best lap", h:"e.g. 1:29.766"},
-    {t:"long", id:"balance", l:"Balance", h:"Entry, mid, exit. High and low speed."},
-    {t:"long", id:"changes", l:"Changes and what they did", h:"e.g. −1 front wing → balance much better"},
-    {t:"text", id:"reliab", l:"Reliability", h:"Any issues. Leave blank if none."},
-    {t:"text", id:"learn", l:"One thing I learned"},
+    {t:"long", id:"warm", l:"Tyre warming", h:"Procedure, which axle, in for Sector 1?"},
+    {t:"long", id:"balance", l:"Balance / grip / evolution", h:"Tyre drop-off, which axle."},
+    {t:"long", id:"braking", l:"Braking", h:"Performance: bias, locking. System: pedal, efficiency, bite."},
+    {t:"long", id:"kerbs", l:"Kerb riding / bottoming / aquaplaning", h:"Which area of the circuit?"},
+    {t:"long", id:"sequence", l:"Session sequence", h:"Run plan, strategy, execution. e.g. Fresh: OWPPPI"},
+    {t:"long", id:"improve", l:"Driving improvements", h:"What could you have done better?"},
+    {t:"long", id:"problem", l:"Biggest problem for lap time", h:"Balance, feeling, etc."},
+    {t:"long", id:"strong", l:"Strong car points", h:"Balance, feeling, etc."},
+    {t:"long", id:"other", l:"Other session comments", h:"Reliability issues."},
   ],
   post: [
     {t:"summary", id:"summary", l:"Sessions"},
@@ -174,6 +178,7 @@ function fieldHTML(f,data,ctx){
   switch(f.t){
     case "text": return `<div class="q">${head}<input type="text" id="f-${P}${f.id}" data-f="${P}${f.id}" value="${esc(v||"")}"></div>`;
     case "long": return `<div class="q">${head}<textarea id="f-${P}${f.id}" data-f="${P}${f.id}" rows="3">${esc(v||"")}</textarea></div>`;
+    case "result": return `<div class="q"><div class="lbl">${esc(f.l)}</div><div class="res3">${[["laptime","Lap time","1:21.456"],["gap","Gap","+0.215"],["pos","Position","P4"]].map(([k,l,ph])=>`<label><span>${l}</span><input type="text" id="f-${P}${k}" data-f="${P}${k}" value="${esc(getP(data,k)||"")}" placeholder="${ph}" inputmode="${k==="pos"?"text":"decimal"}"></label>`).join("")}</div></div>`;
     case "scale": return `<div class="q">${head}<div class="scale">${[1,2,3,4,5,6,7,8,9,10].map(n=>`<button type="button" data-act="set" data-f="${P}${f.id}" data-v="${n}" aria-pressed="${v===n}">${n}</button>`).join("")}</div></div>`;
     case "list3": return `<div class="q">${head}<div class="list3" style="--qc:${f.c||"var(--s1)"}">${[0,1,2].map(i=>`<div class="n"><i>${"ABC"[i]}</i><textarea rows="1" id="f-${P}${f.id}-${i}" data-f="${P}${f.id}.${i}">${esc((v||[])[i]||"")}</textarea></div>`).join("")}</div></div>`;
     case "chips": case "checks": { const L=v||[]; return `<div class="q">${head}<div class="chips">${f.o.map(o=>`<button type="button" data-act="toggle" data-f="${P}${f.id}" data-v="${esc(o)}" aria-pressed="${L.includes(o)}">${esc(o)}</button>`).join("")}</div></div>`; }
@@ -182,7 +187,7 @@ function fieldHTML(f,data,ctx){
     case "goalrev": { const pre=brief(ctx.e.id,ctx.d.id,"pre").data||{}, G=(pre.goals||[]).filter(x=>x&&x.trim()); if(!G.length) return ""; const st=v||{};
       return `<div class="q">${head}<div class="carry">${G.map((g,i)=>`<div class="ci"><div class="t">${esc(g)}</div><div class="opts">${[["done","Achieved"],["part","Partly"],["not","Not this time"]].map(([k,l])=>`<button type="button" data-act="setkey" data-f="goalrev.${i}" data-v="${k}" aria-pressed="${st[i]===k}">${l}</button>`).join("")}</div></div>`).join("")}</div></div>`; }
     case "summary": { const EB=brief(ctx.e.id,ctx.d.id,"event").data||{}, ses=ctx.e.sessions||[], rows=ses.map(s=>({s,x:(EB.s||{})[s.key]||{}})).filter(r=>Object.keys(r.x).length);
-      if(!rows.length) return ""; return `<div class="q">${head}<small>From your Event Brief.</small><div class="summary"><table><thead><tr><th>Session</th><th>Best</th><th>Tyres</th><th>Learned</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${esc(r.s.label)}</td><td>${esc(r.x.best||"–")}</td><td>${esc((r.x.tyres||[]).join(" "))}</td><td>${esc(r.x.learn||"")}</td></tr>`).join("")}</tbody></table></div></div>`; }
+      if(!rows.length) return ""; return `<div class="q">${head}<small>From your Event Brief.</small><div class="summary"><table><thead><tr><th>Session</th><th>Lap time</th><th>Gap</th><th>Pos</th><th>Tyres</th><th>Biggest problem</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${esc(r.s.label)}</td><td>${esc(r.x.laptime||r.x.best||"–")}</td><td>${esc(r.x.gap||"")}</td><td>${esc(r.x.pos||"")}</td><td>${esc((r.x.tyres||[]).join(" "))}</td><td>${esc(r.x.problem||"")}</td></tr>`).join("")}</tbody></table></div></div>`; }
   }
   return "";
 }
@@ -202,7 +207,7 @@ function renderBrief(evId,drvId,kind){
   $("#main").innerHTML=`<div class="noprint"><a class="link" href="#/">← ${esc(isCoach()?"All drivers":"My event")}</a></div>
     ${evHead(e)}
     <div class="card" style="border-top:4px solid ${K.c}"><div class="card-h"><h2>${K.title}</h2>${isCoach()?`<span class="eyebrow">#${esc(d.car_no)} ${esc(d.full_name)}</span>`:""}<div class="r noprint">${statusChip(b)}</div></div>
-      <p class="muted" style="margin:0;font-size:.9rem">${kind==="pre"?"Short and in your own words. It saves as you type.":kind==="event"?"Pick the session, fill in what you can. A line each is fine.":"Simple and clear, in your own words. Your car, sim and next-event items carry into your next Pre-Event Brief."}</p>
+      <p class="muted" style="margin:0;font-size:.9rem">${kind==="pre"?"Short and in your own words. It saves as you type.":kind==="event"?"The same questions as your engineer's debrief sheet, after each session. Pick the session; a line each is fine.":"Simple and clear, in your own words. Your car, sim and next-event items carry into your next Pre-Event Brief."}</p>
       <div class="form" id="form" data-key="${esc(key)}">${body}</div>
       <div class="sendbox noprint">${sent?`<span class="ok">✓ Sent to Riki · ${esc(fmtWhen(b.sent_at))}</span><small class="muted">Change anything and press Send again.</small>`:`<small class="muted">Done? Press Send and Riki has it straight away.</small>`}
         <button class="btn primary big" data-act="send" data-k="${esc(key)}">${sent?"Send again":"Send to Riki"}</button>
