@@ -28,7 +28,7 @@ const FIELDS = {
   ],
   event: [
     {t:"result", id:"result", l:"Result"},
-    {t:"chips", id:"tyres", l:"Tyres", o:["New","Fresh","Used","Soft","Medium","Hard"]},
+    {t:"pickers", id:"pick", l:"Quick tags", h:"Run, tyres, how it felt, corners. Tap, then Done."},
     {t:"long", id:"warm", l:"Tyre warming", h:"Procedure, which axle, in for Sector 1?"},
     {t:"long", id:"balance", l:"Balance / grip / evolution", h:"Tyre drop-off, which axle."},
     {t:"long", id:"braking", l:"Braking", h:"Performance: bias, locking. System: pedal, efficiency, bite."},
@@ -54,7 +54,10 @@ const FIELDS = {
   ],
 };
 
-const S = { user:null, profile:null, drivers:[], series:[], events:[], briefs:{}, route:null, evSel:ls.get("ev"), sessSel:{} };
+const TAG_GROUPS=[["Quick verdict",["Good","Bad","Check Data for Answers"]],["Tyre set",["New","Fresh","Used","Soft","Medium","Hard"]],["Corner phase",["Entry","Mid","Exit"]],["Car",["Braking","Lock Up","Traction","Balance","Tyres","Tyre Warm-up"]],["The lap",["Great Lap","Mistake","Traffic","Aborted Lap"]],["Body & energy · for Noel",["Felt Strong","Good Energy","Neck Pain","Leg Pain","Back Pain","Arms / Shoulders","Low Brake Pressure","Grip Strength","Fatigue","Mental Fatigue","Lost Focus","Hot in Car","Thirsty","Hungry","Need More Snacks","Headache","Stomach Issue"]],["Simulator",["Practice on Sim","Sim Correlation","Sim Setup"]],["Me",["Feeling","Mindset","Question for engineer"]]];
+const RTYPE={perf:"Performance run",race:"Race run"};
+const turnsOf=e=>{const m=String(e.track_info||"").match(/(\d+)\s*turns/);return m?+m[1]:0};
+const S = { user:null, open:{}, profile:null, drivers:[], series:[], events:[], briefs:{}, route:null, evSel:ls.get("ev"), sessSel:{} };
 const bkey = (e,d,k) => `${e}|${d}|${k}`;
 const getP = (o,p) => p.split(".").reduce((a,k)=>a==null?a:a[k], o);
 const setP = (o,p,v) => { const ks=p.split("."); let a=o; ks.slice(0,-1).forEach((k,i)=>{ if(a[k]==null||typeof a[k]!=="object") a[k]=/^\d+$/.test(ks[i+1])?[]:{}; a=a[k]; }); a[ks[ks.length-1]]=v; };
@@ -179,6 +182,18 @@ function fieldHTML(f,data,ctx){
     case "text": return `<div class="q">${head}<input type="text" id="f-${P}${f.id}" data-f="${P}${f.id}" value="${esc(v||"")}"></div>`;
     case "long": return `<div class="q">${head}<textarea id="f-${P}${f.id}" data-f="${P}${f.id}" rows="3">${esc(v||"")}</textarea></div>`;
     case "result": return `<div class="q"><div class="lbl">${esc(f.l)}</div><div class="res3">${[["laptime","Lap time","1:21.456"],["gap","Gap","+0.215"],["pos","Position","P4"]].map(([k,l,ph])=>`<label><span>${l}</span><input type="text" id="f-${P}${k}" data-f="${P}${k}" value="${esc(getP(data,k)||"")}" placeholder="${ph}" inputmode="${k==="pos"?"text":"decimal"}"></label>`).join("")}</div></div>`;
+    case "pickers": {
+      const key=ctx.key, o=S.open[key+P], run=getP(data,"run"), rt=getP(data,"rtype"), tags=getP(data,"tags")||[], allc=getP(data,"allc"), turns=getP(data,"turns")||[], nT=turnsOf(ctx.e);
+      const rv=[run?"Run "+run:"",rt?(rt==="perf"?"Perf":"Race"):""].filter(Boolean).join(" · ");
+      const cs=allc?["All corners"]:[...turns].sort((a,b)=>a-b).map(n=>"T"+n);
+      const btn=(v,label,count)=>`<button type="button" class="pbtn" data-act="popen" data-p="${P}" data-v="${v}" aria-expanded="${o===v}">${label}${count?`<span class="c">${count}</span>`:""} <span class="car">${o===v?"▴":"▾"}</span></button>`;
+      let panel="";
+      const done=`<button type="button" class="btn sm primary" data-act="popen" data-p="${P}" data-v="">Done</button>`;
+      if(o==="run") panel=`<div class="panel"><div class="g"><h5>Run</h5><div class="w runs">${[1,2,3,4,5,6,7,8].map(n=>`<button type="button" data-act="pset" data-f="${P}run" data-v="${n}" aria-pressed="${run===n}">Run ${n}</button>`).join("")}</div></div><div class="g"><h5>Type of run</h5><div class="w">${Object.entries(RTYPE).map(([k,l])=>`<button type="button" data-act="psetk" data-f="${P}rtype" data-v="${k}" aria-pressed="${rt===k}">${l}</button>`).join("")}</div></div><div class="foot2"><span></span><span style="display:flex;gap:6px"><button type="button" class="btn sm" data-act="popen" data-p="${P}" data-v="tags">Tags →</button>${done}</span></div></div>`;
+      if(o==="tags") panel=`<div class="panel">${TAG_GROUPS.map(([h,L])=>`<div class="g"><h5>${esc(h)}</h5><div class="w">${L.map(t=>`<button type="button" data-act="toggle" data-f="${P}tags" data-v="${esc(t)}" aria-pressed="${tags.includes(t)}">${esc(t)}</button>`).join("")}</div></div>`).join("")}<div class="foot2"><span class="muted" style="font-size:.78rem">Pick as many as you like</span><span style="display:flex;gap:6px">${nT?`<button type="button" class="btn sm" data-act="popen" data-p="${P}" data-v="turns">Corners →</button>`:""}<button type="button" class="btn sm primary" data-act="popen" data-p="${P}" data-v="">Done${tags.length?" · "+tags.length:""}</button></span></div></div>`;
+      if(o==="turns") panel=`<div class="panel"><div class="w turns"><button type="button" class="all" data-act="pallc" data-f="${P}" aria-pressed="${!!allc}">All corners</button>${Array.from({length:nT},(_,i)=>i+1).map(n=>`<button type="button" data-act="pturn" data-f="${P}" data-v="${n}" aria-pressed="${!allc&&turns.includes(n)}">T${n}</button>`).join("")}</div><div class="foot2"><span></span>${done}</div></div>`;
+      const chosen=[rv,...cs,...tags].filter(Boolean);
+      return `<div class="q"><div class="lbl">${esc(f.l)}</div>${f.h?`<small>${esc(f.h)}</small>`:""}<div class="pick">${btn("run",rv||"Run",0)}${btn("tags","Tags",tags.length)}${nT?btn("turns","Corners",cs.length):""}</div>${chosen.length?`<div class="chosen">${chosen.map(c=>`<span class="tag" data-v="${esc(c)}">${esc(c)}</span>`).join("")}</div>`:""}${panel}</div>`; }
     case "scale": return `<div class="q">${head}<div class="scale">${[1,2,3,4,5,6,7,8,9,10].map(n=>`<button type="button" data-act="set" data-f="${P}${f.id}" data-v="${n}" aria-pressed="${v===n}">${n}</button>`).join("")}</div></div>`;
     case "list3": return `<div class="q">${head}<div class="list3" style="--qc:${f.c||"var(--s1)"}">${[0,1,2].map(i=>`<div class="n"><i>${"ABC"[i]}</i><textarea rows="1" id="f-${P}${f.id}-${i}" data-f="${P}${f.id}.${i}">${esc((v||[])[i]||"")}</textarea></div>`).join("")}</div></div>`;
     case "chips": case "checks": { const L=v||[]; return `<div class="q">${head}<div class="chips">${f.o.map(o=>`<button type="button" data-act="toggle" data-f="${P}${f.id}" data-v="${esc(o)}" aria-pressed="${L.includes(o)}">${esc(o)}</button>`).join("")}</div></div>`; }
@@ -187,7 +202,7 @@ function fieldHTML(f,data,ctx){
     case "goalrev": { const pre=brief(ctx.e.id,ctx.d.id,"pre").data||{}, G=(pre.goals||[]).filter(x=>x&&x.trim()); if(!G.length) return ""; const st=v||{};
       return `<div class="q">${head}<div class="carry">${G.map((g,i)=>`<div class="ci"><div class="t">${esc(g)}</div><div class="opts">${[["done","Achieved"],["part","Partly"],["not","Not this time"]].map(([k,l])=>`<button type="button" data-act="setkey" data-f="goalrev.${i}" data-v="${k}" aria-pressed="${st[i]===k}">${l}</button>`).join("")}</div></div>`).join("")}</div></div>`; }
     case "summary": { const EB=brief(ctx.e.id,ctx.d.id,"event").data||{}, ses=ctx.e.sessions||[], rows=ses.map(s=>({s,x:(EB.s||{})[s.key]||{}})).filter(r=>Object.keys(r.x).length);
-      if(!rows.length) return ""; return `<div class="q">${head}<small>From your Event Brief.</small><div class="summary"><table><thead><tr><th>Session</th><th>Lap time</th><th>Gap</th><th>Pos</th><th>Tyres</th><th>Biggest problem</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${esc(r.s.label)}</td><td>${esc(r.x.laptime||r.x.best||"–")}</td><td>${esc(r.x.gap||"")}</td><td>${esc(r.x.pos||"")}</td><td>${esc((r.x.tyres||[]).join(" "))}</td><td>${esc(r.x.problem||"")}</td></tr>`).join("")}</tbody></table></div></div>`; }
+      if(!rows.length) return ""; return `<div class="q">${head}<small>From your Event Brief.</small><div class="summary"><table><thead><tr><th>Session</th><th>Lap time</th><th>Gap</th><th>Pos</th><th>Tyres</th><th>Biggest problem</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${esc(r.s.label)}</td><td>${esc(r.x.laptime||r.x.best||"–")}</td><td>${esc(r.x.gap||"")}</td><td>${esc(r.x.pos||"")}</td><td>${esc([...(r.x.tyres||[]),...(r.x.tags||[]).filter(t=>["New","Fresh","Used","Soft","Medium","Hard"].includes(t))].join(" "))}</td><td>${esc(r.x.problem||"")}</td></tr>`).join("")}</tbody></table></div></div>`; }
   }
   return "";
 }
@@ -200,7 +215,7 @@ function renderBrief(evId,drvId,kind){
   if(kind==="event"){
     const ses=e.sessions||[]; const sk=S.sessSel[key]||(ses.find(s=>s.date===today())||ses[0]||{}).key;
     body=ses.length?`<div class="stabs" role="tablist">${ses.map((s,i)=>`<button role="tab" style="--tc:var(--s${(i%5)+1})" data-act="sess" data-k="${esc(key)}" data-v="${esc(s.key)}" aria-selected="${s.key===sk}"><b>${esc(s.label)}${Object.keys((data.s||{})[s.key]||{}).length?'<span class="dot"></span>':""}</b><small>${esc(fmtDay(s.date))}${s.time?" · "+esc(s.time):""}</small></button>`).join("")}</div>
-      <div class="sec" style="--qc:var(--s2)">${FIELDS.event.map(f=>fieldHTML(f,(data.s||{})[sk]||{},{...ctx,prefix:`s.${sk}.`})).join("")}</div>`
+      <div class="sec" style="--qc:var(--s2)">${FIELDS.event.map(f=>fieldHTML(f,(data.s||{})[sk]||{},{...ctx,key,prefix:`s.${sk}.`})).join("")}</div>`
       :`<div class="notice">No sessions set for this event yet.</div>`;
   } else body=FIELDS[kind].map(f=>fieldHTML(f,data,ctx)).join("");
   const sent=b.status==="sent";
@@ -214,6 +229,14 @@ function renderBrief(evId,drvId,kind){
         ${kind==="post"?`<button class="btn" data-act="print">Save as PDF</button>`:""}</div>
     </div>`;
   document.querySelectorAll("#form textarea").forEach(autosize);
+}
+/* re-render without the page jumping: keep the tapped control where it was */
+function anchorRoute(el,toPick){
+  const sel=["act","f","v","p"].filter(k=>el.dataset[k]!=null).map(k=>`[data-${k}="${CSS.escape(el.dataset[k])}"]`).join(""), inP=!!el.closest(".panel");
+  const all=[...document.querySelectorAll(sel)].filter(x=>!!x.closest(".panel")===inP), i=all.indexOf(el), top=el.getBoundingClientRect().top;
+  route();
+  if(toPick){ const pk=document.querySelector("#form .pick"); if(pk){ const hb=$("header.top").getBoundingClientRect().bottom+10, r=pk.getBoundingClientRect(); if(r.top<hb||r.top>innerHeight*.6) scrollTo({top:scrollY+r.top-hb,behavior:"smooth"}); } return; }
+  const nb=[...document.querySelectorAll(sel)].filter(x=>!!x.closest(".panel")===inP)[i]; if(nb){ const d=nb.getBoundingClientRect().top-top; if(Math.abs(d)>1) scrollBy(0,d); }
 }
 function autosize(t){ t.style.height="auto"; t.style.height=Math.min(t.scrollHeight+2,innerHeight*.5)+"px"; }
 
@@ -237,7 +260,12 @@ document.addEventListener("click",async ev=>{
   if(a==="sess"){ S.sessSel[key]=b.dataset.v; route(); return; }
   if(!B) return;
   if(a==="set"){ const cur=getP(B.data,b.dataset.f); setP(B.data,b.dataset.f,cur===+b.dataset.v?null:+b.dataset.v); queueSave(key); route(); return; }
-  if(a==="toggle"){ const L=getP(B.data,b.dataset.f)||[]; const v=b.dataset.v; setP(B.data,b.dataset.f,L.includes(v)?L.filter(x=>x!==v):[...L,v]); queueSave(key); route(); return; }
+  if(a==="popen"){ const id=key+b.dataset.p; S.open[id]=S.open[id]===b.dataset.v||!b.dataset.v?null:b.dataset.v; anchorRoute(b,!b.dataset.v||b.closest(".foot2")); return; }
+  if(a==="pset"){ const cur=getP(B.data,b.dataset.f); setP(B.data,b.dataset.f,cur===+b.dataset.v?null:+b.dataset.v); queueSave(key); anchorRoute(b); return; }
+  if(a==="psetk"){ const cur=getP(B.data,b.dataset.f); setP(B.data,b.dataset.f,cur===b.dataset.v?null:b.dataset.v); queueSave(key); anchorRoute(b); return; }
+  if(a==="pallc"){ const P=b.dataset.f; setP(B.data,P+"allc",!getP(B.data,P+"allc")); if(getP(B.data,P+"allc")) setP(B.data,P+"turns",[]); queueSave(key); anchorRoute(b); return; }
+  if(a==="pturn"){ const P=b.dataset.f, n=+b.dataset.v, L=getP(B.data,P+"turns")||[]; setP(B.data,P+"allc",false); setP(B.data,P+"turns",L.includes(n)?L.filter(x=>x!==n):[...L,n]); queueSave(key); anchorRoute(b); return; }
+  if(a==="toggle"){ const L=getP(B.data,b.dataset.f)||[]; const v=b.dataset.v; setP(B.data,b.dataset.f,L.includes(v)?L.filter(x=>x!==v):[...L,v]); queueSave(key); anchorRoute(b); return; }
   if(a==="setkey"){ const cur=getP(B.data,b.dataset.f); setP(B.data,b.dataset.f,cur===b.dataset.v?null:b.dataset.v); queueSave(key); route(); return; }
   if(a==="send"){ document.querySelectorAll("#form [data-f]").forEach(x=>{ if(x.matches("input,textarea")) setP(B.data,x.dataset.f,x.value); });
     B.status="sent"; B.sent_at=new Date().toISOString(); clearTimeout(timers[key]); await flush(key);

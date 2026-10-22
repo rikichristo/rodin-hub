@@ -156,3 +156,24 @@ textarea{resize:vertical;min-height:70px;line-height:1.45}
 .res3 label{display:grid;gap:4px}
 .res3 label span{font-family:var(--mono);font-size:.6rem;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
 .summary{overflow-x:auto}
+/* quick tags (same as pit notes) */
+.pick{display:flex;gap:6px;flex-wrap:wrap}
+.pbtn{border:1px solid #4A4A52;background:var(--bg);border-radius:8px;padding:8px 11px;font-weight:600;font-size:.86rem;display:inline-flex;align-items:center;gap:6px;color:var(--ink)}
+.pbtn[aria-expanded="true"]{border-color:var(--ink)}
+.pbtn .c{background:var(--ink);color:#000;border-radius:999px;font-size:.7rem;padding:1px 7px;font-family:var(--mono)}
+.pbtn .car{font-size:.7rem;color:var(--muted)}
+.chosen{display:flex;flex-wrap:wrap;gap:5px}
+.tag{font-family:var(--mono);font-size:.62rem;letter-spacing:.06em;text-transform:uppercase;border:1px solid #4A4A52;border-radius:4px;padding:2px 7px;color:var(--soft)}
+.panel{border:1px solid #3A3A42;border-radius:12px;background:#121214;padding:12px;display:grid;gap:12px}
+.panel .g{display:grid;gap:6px}
+.panel .g h5{margin:0;font-family:var(--mono);font-size:.6rem;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:400}
+.panel .w{display:flex;flex-wrap:wrap;gap:6px}
+.panel .w button{border:1px solid #4A4A52;background:var(--bg);border-radius:999px;padding:7px 12px;font-size:.86rem;color:var(--soft)}
+.panel .w button[aria-pressed="true"]{background:var(--ink);color:#000;border-color:var(--ink)}
+.panel .w.runs{display:grid;grid-template-columns:repeat(4,1fr)}
+.panel .w.runs button{border-radius:8px}
+.panel .w.turns{display:grid;grid-template-columns:repeat(auto-fill,minmax(50px,1fr))}
+.panel .w.turns button{border-radius:8px;font-family:var(--mono);font-size:.8rem;padding:9px 0}
+.panel .w.turns button.all{grid-column:1/-1;font-family:var(--body)}
+.panel .foot2{display:flex;justify-content:space-between;align-items:center;gap:8px}
+[data-v="Soft"]{border:2px solid #e10600!important}[data-v="Medium"]{border:2px solid #f5c400!important}[data-v="Hard"]{border:2px solid #fff!important}
