@@ -96,8 +96,8 @@ async function flush(key){
 
 /* ---------- auth ---------- */
 function loginHTML(msg){
-  return `<div class="login"><h1>Driver Hub</h1><p>Sign in with the email and password Riki gave you.</p>
-  <form id="loginForm"><label>Email<input type="email" id="lgEmail" autocomplete="username" required></label>
+  return `<div class="login"><h1>Driver Hub</h1><p>Sign in with the username and password Riki gave you.</p>
+  <form id="loginForm"><label>Username<input type="text" id="lgEmail" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="e.g. reza" required></label>
   <label>Password<input type="password" id="lgPass" autocomplete="current-password" required></label>
   ${msg?`<div class="err">${esc(msg)}</div>`:""}<button class="btn primary big" type="submit">Sign in</button></form>
   <p style="font-size:.8rem">Forgotten your password? Message Riki.</p></div>`;
@@ -214,7 +214,7 @@ function autosize(t){ t.style.height="auto"; t.style.height=Math.min(t.scrollHei
 
 /* ---------- account sheet (simple) ---------- */
 function accountHTML(){
-  return `<div class="card"><div class="card-h"><h2>Account</h2><span class="eyebrow">${esc(S.user.email)}</span></div>
+  return `<div class="card"><div class="card-h"><h2>Account</h2><span class="eyebrow">${esc(S.user.email.replace("@drivers.rikichristo.com",""))}</span></div>
     <form id="pwForm" style="display:grid;gap:8px"><label class="q"><span class="lbl">New password</span><input type="password" id="pw1" minlength="8" autocomplete="new-password" required></label>
     <button class="btn" type="submit">Change password</button></form>
     <div><button class="btn" data-act="signout">Sign out</button></div></div>`;
@@ -246,8 +246,9 @@ document.addEventListener("input",ev=>{
 document.addEventListener("submit",async ev=>{
   ev.preventDefault();
   if(ev.target.id==="loginForm"){ const btn=ev.target.querySelector("button"); btn.disabled=true; btn.textContent="Signing in…";
-    const {error}=await sb.auth.signInWithPassword({email:$("#lgEmail").value.trim(),password:$("#lgPass").value});
-    if(error){ $("#main").innerHTML=loginHTML("That email or password didn't match. Try again."); return; } boot(); }
+    let u=$("#lgEmail").value.trim().toLowerCase(); if(!u.includes("@")) u+="@drivers.rikichristo.com";
+    const {error}=await sb.auth.signInWithPassword({email:u,password:$("#lgPass").value});
+    if(error){ $("#main").innerHTML=loginHTML("That username or password didn't match. Try again."); return; } boot(); }
   if(ev.target.id==="pwForm"){ const {error}=await sb.auth.updateUser({password:$("#pw1").value}); toast(error?"Couldn't change it: "+error.message:"Password changed."); if(!error) location.hash="#/"; }
 });
 window.addEventListener("online",()=>Object.keys(S.briefs).forEach(k=>{ if(ls.get("pend:"+k)) flush(k); }));
