@@ -116,6 +116,7 @@ function route(){
   const h=location.hash.replace(/^#\/?/,"").split("/").filter(Boolean);
   S.route=h; renderBar();
   if(h[0]==="b"&&h[1]&&h[2]&&KINDS[h[3]]) return renderBrief(h[1],h[2],h[3]);
+  if(h[0]==="account"){ $("#main").innerHTML=`<div class="noprint"><a class="link" href="#/">← Home</a></div>`+accountHTML(); return; }
   return isCoach()?renderCoach():renderDriverHome();
 }
 window.addEventListener("hashchange",()=>{ if(S.profile) { route(); scrollTo(0,0); } });
@@ -123,7 +124,7 @@ window.addEventListener("hashchange",()=>{ if(S.profile) { route(); scrollTo(0,0
 function renderBar(){
   const p=S.profile, d=myDriver();
   $("#bar").innerHTML=`<div class="who">${d?`<span class="no">${esc(d.car_no)}</span>`:""}<span><b>${esc(d?d.full_name:p.full_name)}</b><small>${esc(isCoach()?"Head of Coaching Performance":p.role==="driver"?"Driver":p.role)}</small></span></div>
-    ${S.route&&S.route[0]?`<a class="btn sm" href="#/">Home</a>`:""}<button class="btn sm" data-act="account">Account</button>`;
+    ${S.route&&S.route[0]?`<a class="btn sm" href="#/">⌂ Home</a>`:""}${S.route&&S.route[0]==="account"?"":`<button class="btn sm" data-act="account">Account</button>`}`;
 }
 
 /* ---------- driver home ---------- */
@@ -223,7 +224,7 @@ function accountHTML(){
 document.addEventListener("click",async ev=>{
   const b=ev.target.closest("[data-act]"); if(!b) return; const a=b.dataset.act;
   if(a==="signout"){ await sb.auth.signOut(); location.hash=""; return; }
-  if(a==="account"){ $("#main").innerHTML=accountHTML(); return; }
+  if(a==="account"){ location.hash="#/account"; return; }
   if(a==="ev"){ S.evSel=b.dataset.id; ls.set("ev",S.evSel); route(); return; }
   if(a==="go"){ location.hash=b.dataset.href; return; }
   if(a==="print"){ window.print(); return; }
