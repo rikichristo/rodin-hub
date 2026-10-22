@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#000000">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="Rodin Hub">
+<title>Rodin Hub</title>
+<link rel="icon" href="img/icon.png">
+<link rel="apple-touch-icon" href="img/icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Michroma&family=Archivo:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="top">
+  <div class="wrap brand">
+    <img src="img/vcaso.png" alt="VCASO Performance"><span class="x">×</span><img class="rodin" src="img/rodin.png" alt="Rodin Motorsport">
+    <span class="sync" id="sync" hidden><i></i><span id="syncTxt"></span></span>
+  </div>
+  <div class="wrap bar" id="bar"></div>
+</header>
+<main class="wrap" id="main"><div class="notice"><b>Loading…</b></div></main>
+<footer class="wrap">VCASO PERFORMANCE × RODIN MOTORSPORT · DRIVER HUB</footer>
+<div id="toast" class="toast" hidden></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script src="config.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
