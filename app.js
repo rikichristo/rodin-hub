@@ -135,7 +135,7 @@ function evHead(e){
   const ser=S.series.find(s=>s.id===e.series_id);
   return `<div class="evhead"><span class="meta">${esc([ser&&ser.name,e.kind==="test"?"Test":e.kind==="race"?"Race weekend":"Simulator",e.date_from&&(fmtDay(e.date_from)+(e.date_to&&e.date_to!==e.date_from?" – "+fmtDay(e.date_to):""))].filter(Boolean).join(" · "))}</span><h1>${esc(e.location?e.location.split(",")[0]:e.name)} · ${esc(e.name)}</h1>${e.track?`<span class="muted" style="font-size:.86rem">${esc(e.track)}${e.track_info?" · "+esc(e.track_info):""}</span>`:""}</div>`;
 }
-function statusChip(b,short){ return b.status==="sent"?`<span class="chip sent">Sent ${esc(short?fmtTime(b.sent_at):fmtWhen(b.sent_at))}</span>`:Object.keys(b.data||{}).length?`<span class="chip draft">Draft</span>`:`<span class="chip">${short?"To do":"Not started"}</span>`; }
+function statusChip(b,short){ return b.status==="sent"?`<span class="chip sent">${short?"✓ "+esc(fmtTime(b.sent_at)):"Sent "+esc(fmtWhen(b.sent_at))}</span>`:Object.keys(b.data||{}).length?`<span class="chip draft">Draft</span>`:`<span class="chip">${short?"To do":"Not started"}</span>`; }
 function renderDriverHome(){
   const d=myDriver();
   if(!d){ $("#main").innerHTML=`<div class="notice"><b>Your account isn't linked to a driver yet.</b><span>Ask Riki.</span></div>`; return; }
