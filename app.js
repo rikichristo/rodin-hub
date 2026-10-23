@@ -124,7 +124,7 @@ sb.auth.onAuthStateChange((ev)=>{ if(ev==="SIGNED_OUT"){ S.user=null; S.profile=
 function route(){
   const h=location.hash.replace(/^#\/?/,"").split("/").filter(Boolean);
   S.route=h; renderBar();
-  if(h[0]==="b"&&h[1]&&h[2]&&KINDS[h[3]]) return renderBrief(h[1],h[2],h[3]);
+  if(h[0]==="b"&&h[1]&&h[2]&&KINDS[h[3]]) return renderBrief(h[1],h[2],h[3],h[4]);
   if(h[0]==="account"){ $("#main").innerHTML=`<div class="noprint"><a class="link" href="#/">← Home</a></div>`+accountHTML(); return; }
   return isCoach()?renderCoach():renderDriverHome();
 }
@@ -145,7 +145,8 @@ function evHead(e){
   const ser=S.series.find(s=>s.id===e.series_id);
   return `<div class="evhead"><span class="meta">${esc([ser&&ser.name,e.kind==="test"?"Test":e.kind==="race"?"Race weekend":"Simulator",e.date_from&&(fmtDay(e.date_from)+(e.date_to&&e.date_to!==e.date_from?" – "+fmtDay(e.date_to):""))].filter(Boolean).join(" · "))}</span><h1>${esc(e.location?e.location.split(",")[0]:e.name)} · ${esc(e.name)}</h1>${e.track?`<span class="muted" style="font-size:.86rem">${esc(e.track)}${e.track_info?" · "+esc(e.track_info):""}</span>`:""}</div>`;
 }
-function statusChip(b,short){ return b.status==="sent"?`<span class="chip sent">${short?"✓ "+esc(fmtTime(b.sent_at)):"Sent "+esc(fmtWhen(b.sent_at))}</span>`:Object.keys(b.data||{}).length?`<span class="chip draft">Draft</span>`:`<span class="chip">${short?"To do":"Not started"}</span>`; }
+function statusChip(b,short){ if(b.kind==="event"&&b.data&&(b.data.list||b.data.s)){ const e=S.events.find(x=>x.id===b.event_id), L=e?evEntries(b.data,e,b):[], n=L.filter(x=>x.sent).length;
+    if(L.length) return n?`<span class="chip sent" title="${n} session${n>1?"s":""} sent">✓ ${n}</span>`:`<span class="chip draft">Draft</span>`; } return b.status==="sent"?`<span class="chip sent">${short?"✓ "+esc(fmtTime(b.sent_at)):"Sent "+esc(fmtWhen(b.sent_at))}</span>`:Object.keys(b.data||{}).length?`<span class="chip draft">Draft</span>`:`<span class="chip">${short?"To do":"Not started"}</span>`; }
 function renderDriverHome(){
   const d=myDriver();
   if(!d){ $("#main").innerHTML=`<div class="notice"><b>Your account isn't linked to a driver yet.</b><span>Ask Riki.</span></div>`; return; }
@@ -203,32 +204,49 @@ function fieldHTML(f,data,ctx){
       return `<div class="q">${head}<div class="carry">${L.map(it=>`<div class="ci"><div class="t"><span>${esc(it.label)} · from ${esc(it.from)}</span>${esc(it.text)}</div><div class="opts">${[["done","Worked on it"],["part","Partly"],["not","Not yet"]].map(([k,l])=>`<button type="button" data-act="setkey" data-f="carry.${it.key}" data-v="${k}" aria-pressed="${st[it.key]===k}">${l}</button>`).join("")}</div></div>`).join("")}</div></div>`; }
     case "goalrev": { const pre=brief(ctx.e.id,ctx.d.id,"pre").data||{}, G=(pre.goals||[]).filter(x=>x&&x.trim()); if(!G.length) return ""; const st=v||{};
       return `<div class="q">${head}<div class="carry">${G.map((g,i)=>`<div class="ci"><div class="t">${esc(g)}</div><div class="opts">${[["done","Achieved"],["part","Partly"],["not","Not this time"]].map(([k,l])=>`<button type="button" data-act="setkey" data-f="goalrev.${i}" data-v="${k}" aria-pressed="${st[i]===k}">${l}</button>`).join("")}</div></div>`).join("")}</div></div>`; }
-    case "summary": { const EB=brief(ctx.e.id,ctx.d.id,"event").data||{}, ses=ctx.e.sessions||[], rows=ses.map(s=>({s,x:(EB.s||{})[s.key]||{}})).filter(r=>Object.keys(r.x).length);
+    case "summary": { const EB=brief(ctx.e.id,ctx.d.id,"event").data||{}, rows=evEntries(EB,ctx.e).map(x=>({s:{label:x.label},x:x.f})).filter(r=>Object.keys(r.x).length);
       if(!rows.length) return ""; return `<div class="q">${head}<small>From your Event Brief.</small><div class="summary"><table><thead><tr><th>Session</th><th>Lap time</th><th>Gap</th><th>Pos</th><th>Tyres</th><th>Biggest problem</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${esc(r.s.label)}</td><td>${esc(r.x.laptime||r.x.best||"–")}</td><td>${esc(r.x.gap||"")}</td><td>${esc(r.x.pos||"")}</td><td>${esc([...(r.x.tyres||[]),...(r.x.tags||[]).filter(t=>["New","Fresh","Used","Soft","Medium","Hard"].includes(t))].join(" "))}</td><td>${esc(r.x.problem||"")}</td></tr>`).join("")}</tbody></table></div></div>`; }
   }
   return "";
 }
-function renderBrief(evId,drvId,kind){
+/* event brief: one entry per session the driver adds */
+function evEntries(data,e,b){
+  const ses=e.sessions||[], L=(data.list||[]).slice(), have=new Set(L.map(x=>x.k));
+  Object.keys(data.s||{}).forEach(k=>{ if(!have.has(k)&&Object.keys(data.s[k]||{}).length){ const ss=ses.find(x=>x.key===k); L.push({k,label:ss?ss.label:k,sk:k,sent:b&&b.status==="sent"?b.sent_at:null}); } });
+  return L.map(x=>{ const ss=ses.find(y=>y.key===x.sk); return {...x,date:ss&&ss.date,time:ss&&ss.time,f:(data.s||{})[x.k]||{}}; });
+}
+function entryChip(x){ return x.sent?`<span class="chip sent">Sent ${esc(fmtTime(x.sent))}</span>`:Object.keys(x.f).length?`<span class="chip draft">Draft</span>`:`<span class="chip">New</span>`; }
+function eventListHTML(e,d,key,data){
+  const L=evEntries(data,e,S.briefs[key]), ses=e.sessions||[], counts={}; L.forEach(x=>counts[x.sk]=(counts[x.sk]||0)+1);
+  const add=S.open[key+"add"];
+  return `${L.length?`<div class="elist">${L.map((x,i)=>{const f=x.f,info=[f.laptime,f.pos,(f.tags||[]).length?(f.tags.length+" tags"):""].filter(Boolean).join(" · ");
+      return `<a class="eitem" href="#/b/${e.id}/${d.id}/event/${encodeURIComponent(x.k)}" style="--c:var(--s${(ses.findIndex(y=>y.key===x.sk)%5+5)%5+1})"><span><b>${esc(x.label)}</b><small>${esc([x.date&&fmtDay(x.date),x.time].filter(Boolean).join(" · "))}${info?" · "+esc(info):""}</small></span>${entryChip(x)}</a>`}).join("")}</div>`
+      :`<div class="notice" style="border-style:solid"><b>No sessions yet.</b><span>After each session, tap <b>+ Add session</b>, fill it in and send it.</span></div>`}
+    <div class="noprint">${add?`<div class="panel"><div class="g"><h5>Which session?</h5><div class="w">${ses.map(x=>`<button type="button" data-act="eadd" data-v="${esc(x.key)}">${esc(x.label)}${counts[x.key]?` <span class="muted">(${counts[x.key]+1})</span>`:""}</button>`).join("")}<button type="button" data-act="eadd" data-v="">Other / extra run</button></div></div><div class="foot2"><span></span><button type="button" class="btn sm" data-act="eaddx">Cancel</button></div></div>`
+      :`<button class="btn primary big" data-act="eaddo">+ Add session</button>`}</div>`;
+}
+function renderBrief(evId,drvId,kind,entry){
   const e=S.events.find(x=>x.id===evId), d=S.drivers.find(x=>x.id===drvId);
   if(!e||!d){ $("#main").innerHTML=`<div class="notice"><b>Not found.</b><a href="#/">Back</a></div>`; return; }
   const K=KINDS[kind], key=bkey(evId,drvId,kind); if(!S.briefs[key]) S.briefs[key]=brief(evId,drvId,kind);
   const b=S.briefs[key], data=b.data||(b.data={}), ctx={e,d};
   let body="";
+  let one=null;
   if(kind==="event"){
-    const ses=e.sessions||[]; const sk=S.sessSel[key]||(ses.find(s=>s.date===today())||ses[0]||{}).key;
-    body=ses.length?`<div class="stabs" role="tablist">${ses.map((s,i)=>`<button role="tab" style="--tc:var(--s${(i%5)+1})" data-act="sess" data-k="${esc(key)}" data-v="${esc(s.key)}" aria-selected="${s.key===sk}"><b>${esc(s.label)}${Object.keys((data.s||{})[s.key]||{}).length?'<span class="dot"></span>':""}</b><small>${esc(fmtDay(s.date))}${s.time?" · "+esc(s.time):""}</small></button>`).join("")}</div>
-      <div class="sec" style="--qc:var(--s2)">${FIELDS.event.map(f=>fieldHTML(f,(data.s||{})[sk]||{},{...ctx,key,prefix:`s.${sk}.`})).join("")}</div>`
-      :`<div class="notice">No sessions set for this event yet.</div>`;
+    if(entry){ one=evEntries(data,e,b).find(x=>x.k===decodeURIComponent(entry));
+      if(!one){ location.hash=`#/b/${evId}/${drvId}/event`; return; }
+      body=`<div class="sec" style="--qc:var(--s2)">${FIELDS.event.map(f=>fieldHTML(f,one.f,{...ctx,key,prefix:`s.${one.k}.`})).join("")}</div>`;
+    } else body=eventListHTML(e,d,key,data);
   } else body=FIELDS[kind].map(f=>fieldHTML(f,data,ctx)).join("");
-  const sent=b.status==="sent";
-  $("#main").innerHTML=`<div class="noprint"><a class="link" href="#/">← ${esc(isCoach()?"All drivers":"My event")}</a></div>
+  const sent=one?!!one.sent:b.status==="sent", sentAt=one?one.sent:b.sent_at;
+  $("#main").innerHTML=`<div class="noprint">${one?`<a class="link" href="#/b/${evId}/${drvId}/event">← All sessions</a>`:`<a class="link" href="#/">← ${esc(isCoach()?"All drivers":"My event")}</a>`}</div>
     ${evHead(e)}
-    <div class="card" style="border-top:4px solid ${K.c}"><div class="card-h"><h2>${K.title}</h2>${isCoach()?`<span class="eyebrow">#${esc(d.car_no)} ${esc(d.full_name)}</span>`:""}<div class="r noprint">${statusChip(b)}</div></div>
-      <p class="muted" style="margin:0;font-size:.9rem">${kind==="pre"?"Short and in your own words. It saves as you type.":kind==="event"?"The same questions as your engineer's debrief sheet, after each session. Pick the session; a line each is fine.":"Simple and clear, in your own words. Your car, sim and next-event items carry into your next Pre-Event Brief."}</p>
+    <div class="card" style="border-top:4px solid ${K.c}"><div class="card-h"><h2>${one?esc(one.label):K.title}</h2>${isCoach()?`<span class="eyebrow">#${esc(d.car_no)} ${esc(d.full_name)}</span>`:""}<div class="r noprint">${one?entryChip(one):kind==="event"?"":statusChip(b)}</div></div>
+      <p class="muted" style="margin:0;font-size:.9rem">${kind==="pre"?"Short and in your own words. It saves as you type.":kind==="event"?(one?"The same questions as your engineer's debrief sheet. A line each is fine.":"One page per session, with the same questions as your engineer's debrief sheet. Add a session after each one, fill it in and send it."):"Simple and clear, in your own words. Your car, sim and next-event items carry into your next Pre-Event Brief."}</p>
       <div class="form" id="form" data-key="${esc(key)}">${body}</div>
-      <div class="sendbox noprint">${sent?`<span class="ok">✓ Sent to Riki · ${esc(fmtWhen(b.sent_at))}</span><small class="muted">Change anything and press Send again.</small>`:`<small class="muted">Done? Press Send and Riki has it straight away.</small>`}
-        <button class="btn primary big" data-act="send" data-k="${esc(key)}">${sent?"Send again":"Send to Riki"}</button>
-        ${kind==="post"?`<button class="btn" data-act="print">Save as PDF</button>`:""}</div>
+      ${kind==="event"&&!one?"":`<div class="sendbox noprint">${sent?`<span class="ok">✓ Sent to Riki · ${esc(fmtWhen(sentAt))}</span><small class="muted">Change anything and press Send again.</small>`:`<small class="muted">Done? Press Send and Riki has it straight away.</small>`}
+        <button class="btn primary big" data-act="send" data-k="${esc(key)}" ${one?`data-entry="${esc(one.k)}"`:""}>${sent?"Send again":"Send to Riki"}</button>
+        ${kind==="post"?`<button class="btn" data-act="print">Save as PDF</button>`:""}</div>`}
     </div>`;
   document.querySelectorAll("#form textarea").forEach(autosize);
 }
@@ -260,6 +278,12 @@ document.addEventListener("click",async ev=>{
   if(a==="print"){ window.print(); return; }
   const form=b.closest("#form"), key=form?form.dataset.key:b.dataset.k, B=key&&S.briefs[key];
   if(a==="sess"){ S.sessSel[key]=b.dataset.v; route(); return; }
+  if(a==="eaddo"||a==="eaddx"){ const k2=(S.route.slice(1,3).join("|"))+"|event"; S.open[k2+"add"]=a==="eaddo"; route(); return; }
+  if(a==="eadd"){ const [,ev,dr]=S.route, k2=bkey(ev,dr,"event"); if(!S.briefs[k2]) S.briefs[k2]=brief(ev,dr,"event"); const B2=S.briefs[k2], e=S.events.find(x=>x.id===ev);
+    B2.data.list=evEntries(B2.data,e,B2).map(({k,label,sk,sent})=>({k,label,sk,sent})); const ss=(e.sessions||[]).find(x=>x.key===b.dataset.v);
+    const n=B2.data.list.filter(x=>x.sk===b.dataset.v).length, k="e"+Date.now().toString(36);
+    const label=ss?(n?`${ss.label} · ${n+1}`:ss.label):`Extra run ${B2.data.list.filter(x=>!x.sk).length+1}`;
+    B2.data.list.push({k,label,sk:b.dataset.v||""}); B2.data.s=B2.data.s||{}; B2.data.s[k]={}; S.open[k2+"add"]=false; queueSave(k2,0); location.hash=`#/b/${ev}/${dr}/event/${k}`; return; }
   if(!B) return;
   if(a==="set"){ const cur=getP(B.data,b.dataset.f); setP(B.data,b.dataset.f,cur===+b.dataset.v?null:+b.dataset.v); queueSave(key); route(); return; }
   if(a==="popen"){ const id=key+b.dataset.p; S.open[id]=S.open[id]===b.dataset.v||!b.dataset.v?null:b.dataset.v; anchorRoute(b,!b.dataset.v||b.closest(".foot2")); return; }
@@ -270,7 +294,9 @@ document.addEventListener("click",async ev=>{
   if(a==="toggle"){ const L=getP(B.data,b.dataset.f)||[]; const v=b.dataset.v; setP(B.data,b.dataset.f,L.includes(v)?L.filter(x=>x!==v):[...L,v]); queueSave(key); anchorRoute(b); return; }
   if(a==="setkey"){ const cur=getP(B.data,b.dataset.f); setP(B.data,b.dataset.f,cur===b.dataset.v?null:b.dataset.v); queueSave(key); route(); return; }
   if(a==="send"){ document.querySelectorAll("#form [data-f]").forEach(x=>{ if(x.matches("input,textarea")) setP(B.data,x.dataset.f,x.value); });
-    B.status="sent"; B.sent_at=new Date().toISOString(); clearTimeout(timers[key]); await flush(key);
+    const now=new Date().toISOString();
+    if(b.dataset.entry){ const e=S.events.find(x=>x.id===B.event_id); B.data.list=evEntries(B.data,e,B).map(({k,label,sk,sent})=>({k,label,sk,sent})); const it=B.data.list.find(x=>x.k===b.dataset.entry); if(it) it.sent=now; }
+    B.status="sent"; B.sent_at=now; clearTimeout(timers[key]); await flush(key);
     if($("#sync").classList.contains("bad")) toast("Couldn't send yet. It's kept on this phone; try again with signal."); else { toast("Sent to Riki."); route(); } return; }
 });
 document.addEventListener("input",ev=>{
