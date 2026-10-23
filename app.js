@@ -42,6 +42,8 @@ const FIELDS = {
   post: [
     {t:"summary", id:"summary", l:"Sessions"},
     {t:"scale", id:"rating", l:"How did the event go overall? (1–10)"},
+    {t:"scale", id:"drive", l:"My driving performance (1–10)"},
+    {t:"scale", id:"carperf", l:"Car performance (1–10)"},
     {t:"list3", id:"positives", l:"Positives", c:"var(--s4)"},
     {t:"list3", id:"improve", l:"Improvements required", c:"var(--s2)"},
     {t:"goalrev", id:"goalrev", l:"Goals review", h:"Your goals from the Pre-Event Brief."},
