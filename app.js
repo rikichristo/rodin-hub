@@ -133,7 +133,7 @@ window.addEventListener("hashchange",()=>{ if(S.profile) { route(); scrollTo(0,0
 function renderBar(){
   const p=S.profile, d=myDriver();
   $("#bar").innerHTML=`<div class="who">${d?`<span class="no">${esc(d.car_no)}</span>`:""}<span><b>${esc(d?d.full_name:p.full_name)}</b><small>${esc(isCoach()?"Head of Coaching Performance":p.role==="driver"?"Driver":p.role)}</small></span></div>
-    ${S.route&&S.route[0]?`<a class="btn sm" href="#/">⌂ Home</a>`:""}${S.route&&S.route[0]==="account"?"":`<button class="btn sm" data-act="account">Account</button>`}`;
+    <a class="btn sm" href="#/">⌂ Home</a>${S.route&&S.route[0]==="account"?"":`<button class="btn sm" data-act="account">Account</button>`}`;
 }
 
 /* ---------- driver home ---------- */
