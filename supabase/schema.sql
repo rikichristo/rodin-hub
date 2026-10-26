@@ -166,3 +166,17 @@ create policy rh_notes_update on public.rh_notes for update to authenticated
   with check (author_id = (select auth.uid()) or (select public.rh_my_role()) = 'coach');
 create policy rh_notes_delete on public.rh_notes for delete to authenticated
   using (author_id = (select auth.uid()) or (select public.rh_my_role()) = 'coach');
+
+-- 2026-10-26: engineers see only briefs their drivers have sent; drivers see their engineers' names
+alter policy rh_briefs_read on public.rh_briefs using (
+  (select public.rh_my_role()) = 'coach'
+  or driver_id = (select public.rh_my_driver_id())
+  or (status = 'sent' and (select public.rh_can_see_driver(driver_id))));
+create or replace function public.rh_driver_engineers(d uuid) returns text
+language sql stable security definer set search_path = '' as $$
+  select string_agg(split_part(p.full_name,' ',1), ' & ' order by p.full_name)
+  from public.rh_engineer_drivers ed join public.rh_profiles p on p.id = ed.engineer_id
+  where ed.driver_id = d and public.rh_can_see_driver(d)
+$$;
+revoke execute on function public.rh_driver_engineers(uuid) from anon, public;
+grant execute on function public.rh_driver_engineers(uuid) to authenticated;

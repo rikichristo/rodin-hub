@@ -78,13 +78,21 @@ async function loadAll(){
   ]);
   if(p.error||!p.data) throw new Error("No profile for this login yet. Ask Riki to finish setting up your account.");
   S.profile=p.data; S.drivers=dr.data||[]; S.series=se.data||[]; S.events=ev.data||[];
+  S.engOf={}; S.engNames="";
+  if(isCoach()){ const [ed,pr]=await Promise.all([sb.from("rh_engineer_drivers").select("*"),sb.from("rh_profiles").select("id,full_name,role")]);
+    const nm={}; (pr.data||[]).forEach(x=>nm[x.id]=x.full_name); (ed.data||[]).forEach(x=>{(S.engOf[x.driver_id]=S.engOf[x.driver_id]||[]).push(nm[x.engineer_id]||"Engineer")}); }
+  else if(p.data.driver_id){ const r=await sb.rpc("rh_driver_engineers",{d:p.data.driver_id}); if(!r.error&&r.data) S.engNames=r.data; }
   const ids=S.events.map(e=>e.id);
   if(ids.length){ const b=await sb.from("rh_briefs").select("*").in("event_id",ids); (b.data||[]).forEach(x=>S.briefs[bkey(x.event_id,x.driver_id,x.kind)]=x); }
   // restore any unsaved local edits
+  if(isEng()) return;
   Object.keys(localStorage).filter(k=>k.startsWith("rh:pend:")).forEach(k=>{ const p=ls.get(k.slice(3)); if(!p) return;
     const cur=S.briefs[p.key]; if(!cur || new Date(cur.updated_at).getTime() < p.at){ S.briefs[p.key]=Object.assign({},cur||{},p.row); queueSave(p.key,0); } else ls.set(k.slice(3),null); });
 }
 const isCoach = () => S.profile && S.profile.role==="coach";
+const isEng = () => S.profile && (S.profile.role==="engineer"||S.profile.role==="trainer");
+const isStaff = () => isCoach()||isEng();
+const sentTo = () => "Riki"+(S.engNames?" & "+S.engNames:"");
 const myDriver = () => S.drivers.find(d=>d.id===S.profile.driver_id);
 function eventsFor(driver){ return S.events.filter(e=>!driver||!e.series_id||e.series_id===driver.series_id); }
 function defaultEvent(list){ const t=today(); return list.find(e=>(e.date_to||e.date_from||"")>=t) || list[list.length-1] || null; }
@@ -126,13 +134,13 @@ function route(){
   S.route=h; renderBar();
   if(h[0]==="b"&&h[1]&&h[2]&&KINDS[h[3]]) return renderBrief(h[1],h[2],h[3],h[4]);
   if(h[0]==="account"){ $("#main").innerHTML=`<div class="noprint"><a class="link" href="#/">← Home</a></div>`+accountHTML(); return; }
-  return isCoach()?renderCoach():renderDriverHome();
+  return isStaff()?renderCoach():renderDriverHome();
 }
 window.addEventListener("hashchange",()=>{ if(S.profile) { route(); scrollTo(0,0); } });
 
 function renderBar(){
   const p=S.profile, d=myDriver();
-  $("#bar").innerHTML=`<div class="who">${d?`<span class="no">${esc(d.car_no)}</span>`:""}<span><b>${esc(d?d.full_name:p.full_name)}</b><small>${esc(isCoach()?"Head of Coaching Performance":p.role==="driver"?"Driver":p.role)}</small></span></div>
+  $("#bar").innerHTML=`<div class="who">${d?`<span class="no">${esc(d.car_no)}</span>`:""}<span><b>${esc(d?d.full_name:p.full_name)}</b><small>${esc(isCoach()?"Head of Coaching Performance":p.role==="driver"?"Driver":p.role==="engineer"?"Race engineer":p.role)}</small></span></div>
     <a class="btn sm" href="#/">⌂ Home</a>${S.route&&S.route[0]==="account"?"":`<button class="btn sm" data-act="account">Account</button>`}`;
 }
 
@@ -163,10 +171,10 @@ function renderCoach(){
   const drs=S.drivers.filter(d=>!e.series_id||d.series_id===e.series_id);
   const sent=k=>drs.filter(d=>brief(e.id,d.id,k).status==="sent").length;
   $("#main").innerHTML=`${evPicker(list,e.id)}${evHead(e)}
-    <div class="card"><div class="card-h"><h2>Drivers</h2><span class="eyebrow">Pre ${sent("pre")}/${drs.length} · Event ${sent("event")}/${drs.length} · Post ${sent("post")}/${drs.length}</span></div>
-    <div class="grid">${drs.map(d=>`<div class="drow"><div class="h"><span class="no">${esc(d.car_no)}</span><b>${esc(d.full_name)}</b></div>
-      <div class="b3">${Object.entries(KINDS).map(([k,K])=>{const b=brief(e.id,d.id,k);return `<button style="--c:${K.c}" data-act="go" data-href="#/b/${e.id}/${d.id}/${k}"><b>${K.title.replace("Post-Event ","Post ").replace("Pre-Event ","Pre ")}</b>${statusChip(b,true)}</button>`}).join("")}</div></div>`).join("")}</div></div>
-    <p class="muted" style="font-size:.82rem;margin:0">Tap any brief to read it. You can edit too; drivers see your changes.</p>`;
+    <div class="card"><div class="card-h"><h2>${isEng()?(drs.length>1?"Your drivers":"Your driver"):"Drivers"}</h2><span class="eyebrow">Pre ${sent("pre")}/${drs.length} · Event ${sent("event")}/${drs.length} · Post ${sent("post")}/${drs.length}</span></div>
+    <div class="grid">${drs.map(d=>`<div class="drow"><div class="h"><span class="no">${esc(d.car_no)}</span><b>${esc(d.full_name)}</b>${isCoach()&&S.engOf[d.id]?`<small class="eng">Eng · ${esc(S.engOf[d.id].join(", "))}</small>`:""}</div>
+      <div class="b3">${Object.entries(KINDS).map(([k,K])=>{const b=brief(e.id,d.id,k);return `<button style="--c:${K.c}" data-act="go" data-href="#/b/${e.id}/${d.id}/${k}" ${isEng()&&!(S.briefs[bkey(e.id,d.id,k)])?"disabled":""}><b>${K.title.replace("Post-Event ","Post ").replace("Pre-Event ","Pre ")}</b>${statusChip(b,true)}</button>`}).join("")}</div></div>`).join("")}</div></div>
+    <p class="muted" style="font-size:.82rem;margin:0">${isEng()?"Each brief appears here as soon as your driver presses Send. Tap a ✓ to read it.":"Tap any brief to read it. You can edit too; drivers see your changes."}</p>`;
 }
 
 /* ---------- brief page ---------- */
@@ -217,13 +225,13 @@ function evEntries(data,e,b){
 }
 function entryChip(x){ return x.sent?`<span class="chip sent">Sent ${esc(fmtTime(x.sent))}</span>`:Object.keys(x.f).length?`<span class="chip draft">Draft</span>`:`<span class="chip">New</span>`; }
 function eventListHTML(e,d,key,data){
-  const L=evEntries(data,e,S.briefs[key]), ses=e.sessions||[], counts={}; L.forEach(x=>counts[x.sk]=(counts[x.sk]||0)+1);
+  const L=evEntries(data,e,S.briefs[key]).filter(x=>!isEng()||x.sent), ses=e.sessions||[], counts={}; L.forEach(x=>counts[x.sk]=(counts[x.sk]||0)+1);
   const add=S.open[key+"add"];
   return `${L.length?`<div class="elist">${L.map((x,i)=>{const f=x.f,info=[f.laptime,f.pos,(f.tags||[]).length?(f.tags.length+" tags"):""].filter(Boolean).join(" · ");
       return `<a class="eitem" href="#/b/${e.id}/${d.id}/event/${encodeURIComponent(x.k)}" style="--c:var(--s${(ses.findIndex(y=>y.key===x.sk)%5+5)%5+1})"><span><b>${esc(x.label)}</b><small>${esc([x.date&&fmtDay(x.date),x.time].filter(Boolean).join(" · "))}${info?" · "+esc(info):""}</small></span>${entryChip(x)}</a>`}).join("")}</div>`
-      :`<div class="notice" style="border-style:solid"><b>No sessions yet.</b><span>After each session, tap <b>+ Add session</b>, fill it in and send it.</span></div>`}
-    <div class="noprint">${add?`<div class="panel"><div class="g"><h5>Which session?</h5><div class="w">${ses.map(x=>`<button type="button" data-act="eadd" data-v="${esc(x.key)}">${esc(x.label)}${counts[x.key]?` <span class="muted">(${counts[x.key]+1})</span>`:""}</button>`).join("")}<button type="button" data-act="eadd" data-v="">Other / extra run</button></div></div><div class="foot2"><span></span><button type="button" class="btn sm" data-act="eaddx">Cancel</button></div></div>`
-      :`<button class="btn primary big" data-act="eaddo">+ Add session</button>`}</div>`;
+      :isEng()?`<div class="notice" style="border-style:solid"><b>No sessions sent yet.</b><span>Each session appears here when ${esc(d.full_name.split(" ")[0])} presses Send.</span></div>`:`<div class="notice" style="border-style:solid"><b>No sessions yet.</b><span>After each session, tap <b>+ Add session</b>, fill it in and send it.</span></div>`}
+    ${isEng()?"":`<div class="noprint">${add?`<div class="panel"><div class="g"><h5>Which session?</h5><div class="w">${ses.map(x=>`<button type="button" data-act="eadd" data-v="${esc(x.key)}">${esc(x.label)}${counts[x.key]?` <span class="muted">(${counts[x.key]+1})</span>`:""}</button>`).join("")}<button type="button" data-act="eadd" data-v="">Other / extra run</button></div></div><div class="foot2"><span></span><button type="button" class="btn sm" data-act="eaddx">Cancel</button></div></div>`
+      :`<button class="btn primary big" data-act="eaddo">+ Add session</button>`}</div>`}`;
 }
 function renderBrief(evId,drvId,kind,entry){
   const e=S.events.find(x=>x.id===evId), d=S.drivers.find(x=>x.id===drvId);
@@ -239,13 +247,13 @@ function renderBrief(evId,drvId,kind,entry){
     } else body=eventListHTML(e,d,key,data);
   } else body=FIELDS[kind].map(f=>fieldHTML(f,data,ctx)).join("");
   const sent=one?!!one.sent:b.status==="sent", sentAt=one?one.sent:b.sent_at;
-  $("#main").innerHTML=`<div class="noprint">${one?`<a class="link" href="#/b/${evId}/${drvId}/event">← All sessions</a>`:`<a class="link" href="#/">← ${esc(isCoach()?"All drivers":"My event")}</a>`}</div>
+  $("#main").innerHTML=`<div class="noprint">${one?`<a class="link" href="#/b/${evId}/${drvId}/event">← All sessions</a>`:`<a class="link" href="#/">← ${esc(isStaff()?"All drivers":"My event")}</a>`}</div>
     ${evHead(e)}
-    <div class="card" style="border-top:4px solid ${K.c}"><div class="card-h"><h2>${one?esc(one.label):K.title}</h2>${isCoach()?`<span class="eyebrow">#${esc(d.car_no)} ${esc(d.full_name)}</span>`:""}<div class="r noprint">${one?entryChip(one):kind==="event"?"":statusChip(b)}</div></div>
-      <p class="muted" style="margin:0;font-size:.9rem">${kind==="pre"?"Short and in your own words. It saves as you type.":kind==="event"?(one?"The same questions as your engineer's debrief sheet. A line each is fine.":"One page per session, with the same questions as your engineer's debrief sheet. Add a session after each one, fill it in and send it."):"Simple and clear, in your own words. Your car, sim and next-event items carry into your next Pre-Event Brief."}</p>
-      <div class="form" id="form" data-key="${esc(key)}">${body}</div>
-      ${kind==="event"&&!one?"":`<div class="sendbox noprint">${sent?`<span class="ok">✓ Sent to Riki · ${esc(fmtWhen(sentAt))}</span><small class="muted">Change anything and press Send again.</small>`:`<small class="muted">Done? Press Send and Riki has it straight away.</small>`}
-        <button class="btn primary big" data-act="send" data-k="${esc(key)}" ${one?`data-entry="${esc(one.k)}"`:""}>${sent?"Send again":"Send to Riki"}</button>
+    <div class="card" style="border-top:4px solid ${K.c}"><div class="card-h"><h2>${one?esc(one.label):K.title}</h2>${isStaff()?`<span class="eyebrow">#${esc(d.car_no)} ${esc(d.full_name)}</span>`:""}<div class="r noprint">${one?entryChip(one):kind==="event"?"":statusChip(b)}</div></div>
+      <p class="muted" style="margin:0;font-size:.9rem">${isEng()?`Read only · written by ${esc(d.full_name.split(" ")[0])}.${kind==="event"&&!one?" Each session appears once it's sent.":""}`:kind==="pre"?"Short and in your own words. It saves as you type.":kind==="event"?(one?"The same questions as your engineer's debrief sheet. A line each is fine.":"One page per session, with the same questions as your engineer's debrief sheet. Add a session after each one, fill it in and send it."):"Simple and clear, in your own words. Your car, sim and next-event items carry into your next Pre-Event Brief."}</p>
+      ${isEng()?`<fieldset class="ro" disabled><div class="form" id="form" data-key="${esc(key)}">${body}</div></fieldset>`:`<div class="form" id="form" data-key="${esc(key)}">${body}</div>`}
+      ${kind==="event"&&!one||isEng()?"":`<div class="sendbox noprint">${sent?`<span class="ok">✓ Sent to ${esc(sentTo())} · ${esc(fmtWhen(sentAt))}</span><small class="muted">Change anything and press Send again.</small>`:`<small class="muted">Done? Press Send and ${esc(sentTo())} ${S.engNames?"have":"has"} it straight away.</small>`}
+        <button class="btn primary big" data-act="send" data-k="${esc(key)}" ${one?`data-entry="${esc(one.k)}"`:""}>${sent?"Send again":"Send to "+esc(sentTo())}</button>
         ${kind==="post"?`<button class="btn" data-act="print">Save as PDF</button>`:""}</div>`}
     </div>`;
   document.querySelectorAll("#form textarea").forEach(autosize);
@@ -278,13 +286,14 @@ document.addEventListener("click",async ev=>{
   if(a==="print"){ window.print(); return; }
   const form=b.closest("#form"), key=form?form.dataset.key:b.dataset.k, B=key&&S.briefs[key];
   if(a==="sess"){ S.sessSel[key]=b.dataset.v; route(); return; }
+  if(isEng()&&/^(eadd|eaddo|eaddx|sess)$/.test(a)) return;
   if(a==="eaddo"||a==="eaddx"){ const k2=(S.route.slice(1,3).join("|"))+"|event"; S.open[k2+"add"]=a==="eaddo"; route(); return; }
   if(a==="eadd"){ const [,ev,dr]=S.route, k2=bkey(ev,dr,"event"); if(!S.briefs[k2]) S.briefs[k2]=brief(ev,dr,"event"); const B2=S.briefs[k2], e=S.events.find(x=>x.id===ev);
     B2.data.list=evEntries(B2.data,e,B2).map(({k,label,sk,sent})=>({k,label,sk,sent})); const ss=(e.sessions||[]).find(x=>x.key===b.dataset.v);
     const n=B2.data.list.filter(x=>x.sk===b.dataset.v).length, k="e"+Date.now().toString(36);
     const label=ss?(n?`${ss.label} · ${n+1}`:ss.label):`Extra run ${B2.data.list.filter(x=>!x.sk).length+1}`;
     B2.data.list.push({k,label,sk:b.dataset.v||""}); B2.data.s=B2.data.s||{}; B2.data.s[k]={}; S.open[k2+"add"]=false; queueSave(k2,0); location.hash=`#/b/${ev}/${dr}/event/${k}`; return; }
-  if(!B) return;
+  if(!B||isEng()) return;
   if(a==="set"){ const cur=getP(B.data,b.dataset.f); setP(B.data,b.dataset.f,cur===+b.dataset.v?null:+b.dataset.v); queueSave(key); route(); return; }
   if(a==="popen"){ const id=key+b.dataset.p; S.open[id]=S.open[id]===b.dataset.v||!b.dataset.v?null:b.dataset.v; anchorRoute(b,!b.dataset.v||b.closest(".foot2")); return; }
   if(a==="pset"){ const cur=getP(B.data,b.dataset.f); setP(B.data,b.dataset.f,cur===+b.dataset.v?null:+b.dataset.v); queueSave(key); anchorRoute(b); return; }
@@ -297,11 +306,11 @@ document.addEventListener("click",async ev=>{
     const now=new Date().toISOString();
     if(b.dataset.entry){ const e=S.events.find(x=>x.id===B.event_id); B.data.list=evEntries(B.data,e,B).map(({k,label,sk,sent})=>({k,label,sk,sent})); const it=B.data.list.find(x=>x.k===b.dataset.entry); if(it) it.sent=now; }
     B.status="sent"; B.sent_at=now; clearTimeout(timers[key]); await flush(key);
-    if($("#sync").classList.contains("bad")) toast("Couldn't send yet. It's kept on this phone; try again with signal."); else { toast("Sent to Riki."); route(); } return; }
+    if($("#sync").classList.contains("bad")) toast("Couldn't send yet. It's kept on this phone; try again with signal."); else { toast("Sent to "+sentTo()+"."); route(); } return; }
 });
 document.addEventListener("input",ev=>{
   const t=ev.target; if(t.matches("textarea")) autosize(t);
-  const form=t.closest("#form"); if(!form||!t.dataset.f) return; const key=form.dataset.key, B=S.briefs[key];
+  const form=t.closest("#form"); if(!form||!t.dataset.f||isEng()) return; const key=form.dataset.key, B=S.briefs[key];
   setP(B.data,t.dataset.f,t.value); ls.set("pend:"+key,{key,row:{event_id:B.event_id,driver_id:B.driver_id,kind:B.kind,data:B.data,status:B.status||"draft",sent_at:B.sent_at||null},at:Date.now()}); queueSave(key);
 });
 document.addEventListener("submit",async ev=>{

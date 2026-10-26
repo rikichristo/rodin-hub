@@ -182,3 +182,9 @@ textarea{resize:vertical;min-height:70px;line-height:1.45}
 .eitem{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:center;border:1px solid #3A3A42;border-left:4px solid var(--c);border-radius:10px;background:#121214;padding:12px 14px;color:var(--ink);text-decoration:none}
 .eitem b{display:block;font-size:.98rem}
 .eitem small{display:block;color:var(--muted);font-size:.8rem;margin-top:2px}
+
+/* engineer (read-only) */
+fieldset.ro{border:0;padding:0;margin:0;min-width:0}
+fieldset.ro :disabled{opacity:1;cursor:default}
+.drow .h .eng{margin-left:auto;font-family:var(--mono);font-size:.62rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.b3 button:disabled{opacity:.4;cursor:default}
