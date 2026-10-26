@@ -196,3 +196,7 @@ create policy rh_timing_read on public.rh_timing for select to authenticated usi
 create policy rh_timing_ins on public.rh_timing for insert to authenticated with check ((select public.rh_my_role()) = 'coach');
 create policy rh_timing_upd on public.rh_timing for update to authenticated using ((select public.rh_my_role()) = 'coach') with check ((select public.rh_my_role()) = 'coach');
 grant select, insert, update on public.rh_timing to authenticated;
+
+-- 2026-10-26: push reminders (see supabase/functions/rh-remind). VAPID keys + cron secret live in rh_config (no client access).
+-- tables: rh_config(key,value), rh_push_subs(user_id, endpoint unique, sub jsonb), rh_push_log(tag pk)
+-- cron: select cron.schedule('rh-remind','*/5 * * * *', $$select net.http_post(url:='https://<project>.supabase.co/functions/v1/rh-remind', headers:=jsonb_build_object('Content-Type','application/json','x-cron',(select value from public.rh_config where key='cron_secret')), body:='{}'::jsonb)$$);

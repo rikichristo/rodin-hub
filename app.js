@@ -128,6 +128,42 @@ async function boot(){
   S.user=session.user;
   try{ await loadAll(); }catch(e){ $("#main").innerHTML=`<div class="notice"><b>Almost there.</b><span>${esc(e.message)}</span><div><button class="btn" data-act="signout">Sign out</button></div></div>`; return; }
   route();
+  pushInit().then(()=>{ if(!S.route||!S.route.length) route(); });
+}
+/* ---------- push reminders ---------- */
+const PUSH={state:null,reg:null,busy:false};
+const isIOS=()=>/iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==="MacIntel"&&navigator.maxTouchPoints>1);
+const isStandalone=()=>matchMedia("(display-mode: standalone)").matches||navigator.standalone===true;
+function b64u(k){ const p="=".repeat((4-k.length%4)%4), r=atob((k+p).replace(/-/g,"+").replace(/_/g,"/")); return Uint8Array.from([...r].map(c=>c.charCodeAt(0))); }
+async function saveSub(sub){ const {error}=await sb.from("rh_push_subs").upsert({user_id:S.user.id,endpoint:sub.endpoint,sub:sub.toJSON(),ua:navigator.userAgent.slice(0,200)},{onConflict:"endpoint"}); if(error) console.warn(error); return !error; }
+async function pushInit(){
+  if(!("serviceWorker" in navigator)){ PUSH.state="nosupport"; return; }
+  try{ PUSH.reg=await navigator.serviceWorker.register("sw.js"); }catch(e){ PUSH.state="nosupport"; return; }
+  if(!("PushManager" in window)||!("Notification" in window)){ PUSH.state=isIOS()&&!isStandalone()?"install":"nosupport"; return; }
+  if(Notification.permission==="denied"){ PUSH.state="denied"; return; }
+  const sub=await PUSH.reg.pushManager.getSubscription().catch(()=>null);
+  if(sub&&Notification.permission==="granted"){ PUSH.state="on"; saveSub(sub); } else PUSH.state="off";
+}
+async function pushOn(){
+  if(PUSH.busy) return; PUSH.busy=true; route();
+  try{
+    const perm=await Notification.requestPermission();
+    if(perm!=="granted"){ PUSH.state=perm==="denied"?"denied":"off"; return; }
+    const reg=await navigator.serviceWorker.ready;
+    const sub=(await reg.pushManager.getSubscription())||await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:b64u(window.RH_CONFIG.vapid)});
+    if(!await saveSub(sub)){ toast("Couldn't save. Check signal and try again."); return; }
+    PUSH.state="on"; await sb.functions.invoke("rh-remind",{body:{test:true}}); toast("Reminders on. A test notification is on its way.");
+  }catch(e){ console.warn(e); toast("Couldn't turn reminders on: "+(e.message||e)); }
+  finally{ PUSH.busy=false; route(); }
+}
+function pushCard(){
+  const st=PUSH.state; if(!st||st==="nosupport") return "";
+  const who=isStaff()?"Get the same reminders as the drivers on this phone.":"A nudge 10 minutes after each session and at the end of the day, only if your report isn't sent.";
+  if(st==="install") return `<div class="card push"><div class="card-h"><h2>Reminders</h2><span class="eyebrow">This phone</span></div><p class="muted" style="margin:0;font-size:.9rem">${who}</p>
+    <ol class="steps2"><li>Tap <b>Share</b> <span class="ico">⬆︎</span> at the bottom of Safari.</li><li>Tap <b>Add to Home Screen</b>, then <b>Add</b>.</li><li>Open <b>Rodin Hub</b> from the new icon and tap <b>Turn on reminders</b>.</li></ol></div>`;
+  if(st==="denied") return `<div class="card push"><div class="card-h"><h2>Reminders</h2><span class="eyebrow">Blocked</span></div><p class="muted" style="margin:0;font-size:.9rem">Notifications are switched off for Rodin Hub. Open <b>Settings → Notifications → Rodin Hub</b> and allow them, then come back here.</p></div>`;
+  if(st==="on") return `<div class="card push on"><div class="card-h"><h2>Reminders</h2><span class="chip sent">On</span><div class="r"><button class="btn sm" data-act="push-test">Send a test</button></div></div><p class="muted" style="margin:0;font-size:.86rem">${who}</p></div>`;
+  return `<div class="card push"><div class="card-h"><h2>Reminders</h2><span class="eyebrow">Off on this phone</span></div><p class="muted" style="margin:0;font-size:.9rem">${who}</p><button class="btn primary big" data-act="push-on" ${PUSH.busy?"disabled":""}>${PUSH.busy?"Turning on…":"Turn on reminders"}</button></div>`;
 }
 sb.auth.onAuthStateChange((ev)=>{ if(ev==="SIGNED_OUT"){ S.user=null; S.profile=null; S.briefs={}; boot(); } });
 
@@ -164,7 +200,7 @@ function renderDriverHome(){
   const list=eventsFor(d); let e=list.find(x=>x.id===S.evSel)||defaultEvent(list);
   if(!e){ $("#main").innerHTML=`<div class="notice"><b>No events yet.</b><span>Riki will add the next one.</span></div>`; return; }
   $("#main").innerHTML=`${evPicker(list,e.id)}${evHead(e)}
-    <div class="steps">${Object.entries(KINDS).map(([k,K])=>{const b=brief(e.id,d.id,k);return `<a class="step" style="--c:${K.c};text-decoration:none" href="#/b/${e.id}/${d.id}/${k}"><span class="n">${K.n}</span><span><b>${K.title}</b><small>${K.sub}</small></span>${statusChip(b)}</a>`}).join("")}</div>${bestLapsCard(e,[d])}`;
+    <div class="steps">${Object.entries(KINDS).map(([k,K])=>{const b=brief(e.id,d.id,k);return `<a class="step" style="--c:${K.c};text-decoration:none" href="#/b/${e.id}/${d.id}/${k}"><span class="n">${K.n}</span><span><b>${K.title}</b><small>${K.sub}</small></span>${statusChip(b)}</a>`}).join("")}</div>${pushCard()}${bestLapsCard(e,[d])}`;
 }
 
 /* ---------- coach home ---------- */
@@ -177,7 +213,7 @@ function renderCoach(){
     <div class="card"><div class="card-h"><h2>${isEng()?(drs.length>1?"Your drivers":"Your driver"):"Drivers"}</h2><span class="eyebrow">Pre ${sent("pre")}/${drs.length} · Event ${sent("event")}/${drs.length} · Post ${sent("post")}/${drs.length}</span></div>
     <div class="grid">${drs.map(d=>`<div class="drow"><div class="h"><span class="no">${esc(d.car_no)}</span><b>${esc(d.full_name)}</b>${isCoach()&&S.engOf[d.id]?`<small class="eng">Eng · ${esc(S.engOf[d.id].join(", "))}</small>`:""}</div>
       <div class="b3">${Object.entries(KINDS).map(([k,K])=>{const b=brief(e.id,d.id,k);return `<button style="--c:${K.c}" data-act="go" data-href="#/b/${e.id}/${d.id}/${k}" ${isEng()&&!(S.briefs[bkey(e.id,d.id,k)])?"disabled":""}><b>${K.title.replace("Post-Event ","Post ").replace("Pre-Event ","Pre ")}</b>${statusChip(b,true)}</button>`}).join("")}</div></div>`).join("")}</div></div>
-    ${bestLapsCard(e,drs)}
+    ${bestLapsCard(e,drs)}${pushCard()}
     <p class="muted" style="font-size:.82rem;margin:0">${isEng()?"Each brief appears here as soon as your driver presses Send. Tap a ✓ to read it.":"Tap any brief to read it. You can edit too; drivers see your changes."}</p>`;
 }
 
@@ -312,6 +348,8 @@ document.addEventListener("click",async ev=>{
   if(a==="ev"){ S.evSel=b.dataset.id; ls.set("ev",S.evSel); route(); return; }
   if(a==="go"){ location.hash=b.dataset.href; return; }
   if(a==="print"){ window.print(); return; }
+  if(a==="push-on"){ pushOn(); return; }
+  if(a==="push-test"){ const r=await sb.functions.invoke("rh-remind",{body:{test:true}}); toast(r.error?"Couldn't send the test.":(r.data&&r.data.sent?"Test sent. It should arrive in a few seconds.":"No phone registered. Turn reminders on again.")); if(r.data&&r.data.sent===0){ PUSH.state="off"; route(); } return; }
   const form=b.closest("#form"), key=form?form.dataset.key:b.dataset.k, B=key&&S.briefs[key];
   if(a==="sess"){ S.sessSel[key]=b.dataset.v; route(); return; }
   if(isEng()&&/^(eadd|eaddo|eaddx|sess)$/.test(a)) return;

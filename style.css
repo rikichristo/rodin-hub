@@ -205,3 +205,8 @@ table.laps .lt{font-family:var(--mono);font-weight:600;display:block}
 table.laps .lt.pb{color:#B48CFF}
 table.laps small{display:block;color:var(--muted);font-size:.7rem;font-family:var(--mono)}
 table.laps tr.tot td{border-bottom:0;font-weight:600}
+/* reminders */
+.card.push{border-color:#4A4A52}
+.card.push.on{border-color:rgba(63,211,154,.45)}
+.steps2{margin:0;padding-left:20px;display:grid;gap:6px;font-size:.92rem}
+.steps2 .ico{display:inline-block;border:1px solid var(--line2);border-radius:5px;padding:0 5px;font-size:.8rem}
