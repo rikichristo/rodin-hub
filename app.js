@@ -28,6 +28,7 @@ const FIELDS = {
   ],
   event: [
     {t:"result", id:"result", l:"Result"},
+    {t:"weight", id:"wt", l:"Driver weight", h:"Weigh in before the session and again straight after. Tap a box and scroll."},
     {t:"pickers", id:"pick", l:"Quick tags", h:"Run, tyres, how it felt, corners. Tap, then Done."},
     {t:"long", id:"warm", l:"Tyre warming", h:"Procedure, which axle, in for Sector 1?"},
     {t:"long", id:"balance", l:"Balance / grip / evolution", h:"Tyre drop-off, which axle."},
@@ -44,6 +45,7 @@ const FIELDS = {
     {t:"scale", id:"rating", l:"How did the event go overall? (1–10)"},
     {t:"scale", id:"drive", l:"My driving performance (1–10)"},
     {t:"scale", id:"carperf", l:"Car performance (1–10)"},
+    {t:"scale", id:"physical", l:"My physical performance (1–10)"},
     {t:"list3", id:"positives", l:"Positives", c:"var(--s4)"},
     {t:"list3", id:"improve", l:"Improvements required", c:"var(--s2)"},
     {t:"goalrev", id:"goalrev", l:"Goals review", h:"Your goals from the Pre-Event Brief."},
@@ -205,6 +207,10 @@ function fieldHTML(f,data,ctx){
       if(o==="turns") panel=`<div class="panel"><div class="w turns"><button type="button" class="all" data-act="pallc" data-f="${P}" aria-pressed="${!!allc}">All corners</button>${Array.from({length:nT},(_,i)=>i+1).map(n=>`<button type="button" data-act="pturn" data-f="${P}" data-v="${n}" aria-pressed="${!allc&&turns.includes(n)}">T${n}</button>`).join("")}</div><div class="foot2"><span></span>${done}</div></div>`;
       const chosen=[rv,...cs,...tags].filter(Boolean);
       return `<div class="q"><div class="lbl">${esc(f.l)}</div>${f.h?`<small>${esc(f.h)}</small>`:""}<div class="pick">${btn("run",rv||"Run",0)}${btn("tags","Tags",tags.length)}${nT?btn("turns","Corners",cs.length):""}</div>${chosen.length?`<div class="chosen">${chosen.map(c=>`<span class="tag" data-v="${esc(c)}">${esc(c)}</span>`).join("")}</div>`:""}${panel}</div>`; }
+    case "weight": { const pre=getP(data,"wt_pre"), post=getP(data,"wt_post"), base=lastWeight(ctx)||70;
+      const box=(k,l,v)=>`<label class="wbox ${v!=null?"set":""}"><span>${l}</span><b>${v!=null?(+v).toFixed(1)+" kg":"– kg"}</b><select data-f="${P}${k}" data-num aria-label="${l} weight in kg">${WOPTS((v??base))}</select></label>`;
+      const diff=pre!=null&&post!=null?(post-pre):null;
+      return `<div class="q">${head}<div class="wrow">${box("wt_pre","Before",pre)}${box("wt_post","After",post)}<div class="wdiff ${diff==null?"":diff<0?"down":"up"}"><span>Change</span><b>${diff==null?"–":(diff>0?"+":diff<0?"−":"±")+Math.abs(diff).toFixed(1)+" kg"}</b></div></div></div>`; }
     case "scale": return `<div class="q">${head}<div class="scale">${[1,2,3,4,5,6,7,8,9,10].map(n=>`<button type="button" data-act="set" data-f="${P}${f.id}" data-v="${n}" aria-pressed="${v===n}">${n}</button>`).join("")}</div></div>`;
     case "list3": return `<div class="q">${head}<div class="list3" style="--qc:${f.c||"var(--s1)"}">${[0,1,2].map(i=>`<div class="n"><i>${"ABC"[i]}</i><textarea rows="1" id="f-${P}${f.id}-${i}" data-f="${P}${f.id}.${i}">${esc((v||[])[i]||"")}</textarea></div>`).join("")}</div></div>`;
     case "chips": case "checks": { const L=v||[]; return `<div class="q">${head}<div class="chips">${f.o.map(o=>`<button type="button" data-act="toggle" data-f="${P}${f.id}" data-v="${esc(o)}" aria-pressed="${L.includes(o)}">${esc(o)}</button>`).join("")}</div></div>`; }
@@ -213,10 +219,14 @@ function fieldHTML(f,data,ctx){
     case "goalrev": { const pre=brief(ctx.e.id,ctx.d.id,"pre").data||{}, G=(pre.goals||[]).filter(x=>x&&x.trim()); if(!G.length) return ""; const st=v||{};
       return `<div class="q">${head}<div class="carry">${G.map((g,i)=>`<div class="ci"><div class="t">${esc(g)}</div><div class="opts">${[["done","Achieved"],["part","Partly"],["not","Not this time"]].map(([k,l])=>`<button type="button" data-act="setkey" data-f="goalrev.${i}" data-v="${k}" aria-pressed="${st[i]===k}">${l}</button>`).join("")}</div></div>`).join("")}</div></div>`; }
     case "summary": { const EB=brief(ctx.e.id,ctx.d.id,"event").data||{}, rows=evEntries(EB,ctx.e).map(x=>({s:{label:x.label},x:x.f})).filter(r=>Object.keys(r.x).length);
-      if(!rows.length) return ""; return `<div class="q">${head}<small>From your Event Brief.</small><div class="summary"><table><thead><tr><th>Session</th><th>Lap time</th><th>Gap</th><th>Pos</th><th>Tyres</th><th>Biggest problem</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${esc(r.s.label)}</td><td>${esc(r.x.laptime||r.x.best||"–")}</td><td>${esc(r.x.gap||"")}</td><td>${esc(r.x.pos||"")}</td><td>${esc([...(r.x.tyres||[]),...(r.x.tags||[]).filter(t=>["New","Fresh","Used","Soft","Medium","Hard"].includes(t))].join(" "))}</td><td>${esc(r.x.problem||"")}</td></tr>`).join("")}</tbody></table></div></div>`; }
+      if(!rows.length) return ""; return `<div class="q">${head}<small>From your Event Brief.</small><div class="summary"><table><thead><tr><th>Session</th><th>Lap time</th><th>Gap</th><th>Pos</th><th>Weight</th><th>Tyres</th><th>Biggest problem</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${esc(r.s.label)}</td><td>${esc(r.x.laptime||r.x.best||"–")}</td><td>${esc(r.x.gap||"")}</td><td>${esc(r.x.pos||"")}</td><td>${r.x.wt_pre!=null||r.x.wt_post!=null?esc([r.x.wt_pre,r.x.wt_post].map(v=>v!=null?(+v).toFixed(1):"–").join(" → ")):""}</td><td>${esc([...(r.x.tyres||[]),...(r.x.tags||[]).filter(t=>["New","Fresh","Used","Soft","Medium","Hard"].includes(t))].join(" "))}</td><td>${esc(r.x.problem||"")}</td></tr>`).join("")}</tbody></table></div></div>`; }
   }
   return "";
 }
+/* weight picker: 40.0–110.0 kg in 0.1 steps; the wheel opens at the last weight */
+function WOPTS(sel){ const v=Math.round(+sel*10); let o=""; for(let i=400;i<=1100;i++) o+=`<option value="${(i/10).toFixed(1)}"${i===v?" selected":""}>${(i/10).toFixed(1)} kg</option>`; return o; }
+function lastWeight(ctx){ if(!ctx||!ctx.e||!ctx.d) return null; const EB=brief(ctx.e.id,ctx.d.id,"event").data||{}; let w=null;
+  evEntries(EB,ctx.e).forEach(x=>{ if(x.f.wt_pre!=null) w=x.f.wt_pre; if(x.f.wt_post!=null) w=x.f.wt_post; }); return w; }
 /* event brief: one entry per session the driver adds */
 function evEntries(data,e,b){
   const ses=e.sessions||[], L=(data.list||[]).slice(), have=new Set(L.map(x=>x.k));
@@ -308,9 +318,13 @@ document.addEventListener("click",async ev=>{
     B.status="sent"; B.sent_at=now; clearTimeout(timers[key]); await flush(key);
     if($("#sync").classList.contains("bad")) toast("Couldn't send yet. It's kept on this phone; try again with signal."); else { toast("Sent to "+sentTo()+"."); route(); } return; }
 });
+/* weight wheel opens at the last weight; closing it without scrolling still logs that value */
+document.addEventListener("focusout",ev=>{ const t=ev.target; if(!t.matches||!t.matches("select[data-num]")||isEng()) return; const form=t.closest("#form"); if(!form) return;
+  const B=S.briefs[form.dataset.key]; if(B&&getP(B.data,t.dataset.f)==null){ t.dispatchEvent(new Event("input",{bubbles:true})); } });
 document.addEventListener("input",ev=>{
   const t=ev.target; if(t.matches("textarea")) autosize(t);
   const form=t.closest("#form"); if(!form||!t.dataset.f||isEng()) return; const key=form.dataset.key, B=S.briefs[key];
+  if(t.matches("select[data-num]")){ setP(B.data,t.dataset.f,t.value===""?null:+t.value); ls.set("pend:"+key,{key,row:{event_id:B.event_id,driver_id:B.driver_id,kind:B.kind,data:B.data,status:B.status||"draft",sent_at:B.sent_at||null},at:Date.now()}); queueSave(key); anchorRoute(t); return; }
   setP(B.data,t.dataset.f,t.value); ls.set("pend:"+key,{key,row:{event_id:B.event_id,driver_id:B.driver_id,kind:B.kind,data:B.data,status:B.status||"draft",sent_at:B.sent_at||null},at:Date.now()}); queueSave(key);
 });
 document.addEventListener("submit",async ev=>{

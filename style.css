@@ -188,3 +188,13 @@ fieldset.ro{border:0;padding:0;margin:0;min-width:0}
 fieldset.ro :disabled{opacity:1;cursor:default}
 .drow .h .eng{margin-left:auto;font-family:var(--mono);font-size:.62rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
 .b3 button:disabled{opacity:.4;cursor:default}
+/* driver weight: before / after with a scroll picker */
+.wrow{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+.wbox,.wdiff{position:relative;display:grid;gap:4px;border:1px solid var(--line2);border-radius:8px;padding:9px 12px;background:var(--bg)}
+.wbox span,.wdiff span{font-family:var(--mono);font-size:.6rem;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.wbox b,.wdiff b{font-family:var(--mono);font-weight:600;font-size:1.05rem}
+.wbox:not(.set) b{color:var(--muted)}
+.wbox select{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;font-size:16px;border:0;padding:0}
+.wbox:focus-within{border-color:var(--ink)}
+.wdiff{background:transparent;border-style:dashed}
+.wdiff.down b{color:#FFB23F}.wdiff.up b{color:#3FD39A}
