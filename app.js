@@ -85,6 +85,7 @@ async function loadAll(){
     const nm={}; (pr.data||[]).forEach(x=>nm[x.id]=x.full_name); (ed.data||[]).forEach(x=>{(S.engOf[x.driver_id]=S.engOf[x.driver_id]||[]).push(nm[x.engineer_id]||"Engineer")}); }
   else if(p.data.driver_id){ const r=await sb.rpc("rh_driver_engineers",{d:p.data.driver_id}); if(!r.error&&r.data) S.engNames=r.data; }
   const ids=S.events.map(e=>e.id);
+  S.timing={}; if(ids.length){ const t=await sb.from("rh_timing").select("*").in("event_id",ids); (t.data||[]).forEach(x=>S.timing[x.event_id+"|"+x.session_key]=x); }
   if(ids.length){ const b=await sb.from("rh_briefs").select("*").in("event_id",ids); (b.data||[]).forEach(x=>S.briefs[bkey(x.event_id,x.driver_id,x.kind)]=x); }
   // restore any unsaved local edits
   if(isEng()) return;
@@ -163,7 +164,7 @@ function renderDriverHome(){
   const list=eventsFor(d); let e=list.find(x=>x.id===S.evSel)||defaultEvent(list);
   if(!e){ $("#main").innerHTML=`<div class="notice"><b>No events yet.</b><span>Riki will add the next one.</span></div>`; return; }
   $("#main").innerHTML=`${evPicker(list,e.id)}${evHead(e)}
-    <div class="steps">${Object.entries(KINDS).map(([k,K])=>{const b=brief(e.id,d.id,k);return `<a class="step" style="--c:${K.c};text-decoration:none" href="#/b/${e.id}/${d.id}/${k}"><span class="n">${K.n}</span><span><b>${K.title}</b><small>${K.sub}</small></span>${statusChip(b)}</a>`}).join("")}</div>`;
+    <div class="steps">${Object.entries(KINDS).map(([k,K])=>{const b=brief(e.id,d.id,k);return `<a class="step" style="--c:${K.c};text-decoration:none" href="#/b/${e.id}/${d.id}/${k}"><span class="n">${K.n}</span><span><b>${K.title}</b><small>${K.sub}</small></span>${statusChip(b)}</a>`}).join("")}</div>${bestLapsCard(e,[d])}`;
 }
 
 /* ---------- coach home ---------- */
@@ -176,6 +177,7 @@ function renderCoach(){
     <div class="card"><div class="card-h"><h2>${isEng()?(drs.length>1?"Your drivers":"Your driver"):"Drivers"}</h2><span class="eyebrow">Pre ${sent("pre")}/${drs.length} · Event ${sent("event")}/${drs.length} · Post ${sent("post")}/${drs.length}</span></div>
     <div class="grid">${drs.map(d=>`<div class="drow"><div class="h"><span class="no">${esc(d.car_no)}</span><b>${esc(d.full_name)}</b>${isCoach()&&S.engOf[d.id]?`<small class="eng">Eng · ${esc(S.engOf[d.id].join(", "))}</small>`:""}</div>
       <div class="b3">${Object.entries(KINDS).map(([k,K])=>{const b=brief(e.id,d.id,k);return `<button style="--c:${K.c}" data-act="go" data-href="#/b/${e.id}/${d.id}/${k}" ${isEng()&&!(S.briefs[bkey(e.id,d.id,k)])?"disabled":""}><b>${K.title.replace("Post-Event ","Post ").replace("Pre-Event ","Pre ")}</b>${statusChip(b,true)}</button>`}).join("")}</div></div>`).join("")}</div></div>
+    ${bestLapsCard(e,drs)}
     <p class="muted" style="font-size:.82rem;margin:0">${isEng()?"Each brief appears here as soon as your driver presses Send. Tap a ✓ to read it.":"Tap any brief to read it. You can edit too; drivers see your changes."}</p>`;
 }
 
@@ -194,7 +196,8 @@ function fieldHTML(f,data,ctx){
   switch(f.t){
     case "text": return `<div class="q">${head}<input type="text" id="f-${P}${f.id}" data-f="${P}${f.id}" value="${esc(v||"")}"></div>`;
     case "long": return `<div class="q">${head}<textarea id="f-${P}${f.id}" data-f="${P}${f.id}" rows="3">${esc(v||"")}</textarea></div>`;
-    case "result": return `<div class="q"><div class="lbl">${esc(f.l)}</div><div class="res3">${[["laptime","Lap time","1:21.456"],["gap","Gap","+0.215"],["pos","Position","P4"]].map(([k,l,ph])=>`<label><span>${l}</span><input type="text" id="f-${P}${k}" data-f="${P}${k}" value="${esc(getP(data,k)||"")}" placeholder="${ph}" inputmode="${k==="pos"?"text":"decimal"}"></label>`).join("")}</div></div>`;
+    case "result": { const T=ctx.t, tv={laptime:T&&T.best,gap:T&&(T.gap||(T.pos===1?"Fastest":"")),pos:T&&T.pos?"P"+T.pos:""};
+      return `<div class="q"><div class="lbl">${esc(f.l)}</div>${T?`<small class="tsrc">Filled from official timing${T.laps?" · "+T.laps+" laps":""}${T.n?" · P"+T.pos+" of "+T.n:""}. Change it if your run differs.</small>`:""}<div class="res3">${[["laptime","Lap time","1:21.456"],["gap","Gap","+0.215"],["pos","Position","P4"]].map(([k,l,ph])=>`<label><span>${l}</span><input type="text" id="f-${P}${k}" data-f="${P}${k}" value="${esc(getP(data,k)||tv[k]||"")}" placeholder="${ph}" inputmode="${k==="pos"?"text":"decimal"}"></label>`).join("")}</div></div>`; }
     case "pickers": {
       const key=ctx.key, o=S.open[key+P], run=getP(data,"run"), rt=getP(data,"rtype"), tags=getP(data,"tags")||[], allc=getP(data,"allc"), turns=getP(data,"turns")||[], nT=turnsOf(ctx.e);
       const rv=[run?"Run "+run:"",rt?(rt==="perf"?"Perf":"Race"):""].filter(Boolean).join(" · ");
@@ -218,10 +221,23 @@ function fieldHTML(f,data,ctx){
       return `<div class="q">${head}<div class="carry">${L.map(it=>`<div class="ci"><div class="t"><span>${esc(it.label)} · from ${esc(it.from)}</span>${esc(it.text)}</div><div class="opts">${[["done","Worked on it"],["part","Partly"],["not","Not yet"]].map(([k,l])=>`<button type="button" data-act="setkey" data-f="carry.${it.key}" data-v="${k}" aria-pressed="${st[it.key]===k}">${l}</button>`).join("")}</div></div>`).join("")}</div></div>`; }
     case "goalrev": { const pre=brief(ctx.e.id,ctx.d.id,"pre").data||{}, G=(pre.goals||[]).filter(x=>x&&x.trim()); if(!G.length) return ""; const st=v||{};
       return `<div class="q">${head}<div class="carry">${G.map((g,i)=>`<div class="ci"><div class="t">${esc(g)}</div><div class="opts">${[["done","Achieved"],["part","Partly"],["not","Not this time"]].map(([k,l])=>`<button type="button" data-act="setkey" data-f="goalrev.${i}" data-v="${k}" aria-pressed="${st[i]===k}">${l}</button>`).join("")}</div></div>`).join("")}</div></div>`; }
-    case "summary": { const EB=brief(ctx.e.id,ctx.d.id,"event").data||{}, rows=evEntries(EB,ctx.e).map(x=>({s:{label:x.label},x:x.f})).filter(r=>Object.keys(r.x).length);
-      if(!rows.length) return ""; return `<div class="q">${head}<small>From your Event Brief.</small><div class="summary"><table><thead><tr><th>Session</th><th>Lap time</th><th>Gap</th><th>Pos</th><th>Weight</th><th>Tyres</th><th>Biggest problem</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${esc(r.s.label)}</td><td>${esc(r.x.laptime||r.x.best||"–")}</td><td>${esc(r.x.gap||"")}</td><td>${esc(r.x.pos||"")}</td><td>${r.x.wt_pre!=null||r.x.wt_post!=null?esc([r.x.wt_pre,r.x.wt_post].map(v=>v!=null?(+v).toFixed(1):"–").join(" → ")):""}</td><td>${esc([...(r.x.tyres||[]),...(r.x.tags||[]).filter(t=>["New","Fresh","Used","Soft","Medium","Hard"].includes(t))].join(" "))}</td><td>${esc(r.x.problem||"")}</td></tr>`).join("")}</tbody></table></div></div>`; }
+    case "summary": { const EB=brief(ctx.e.id,ctx.d.id,"event").data||{}, rows=evEntries(EB,ctx.e).map(x=>({s:{label:x.label},x:x.f,t:x.sk?tRow(ctx.e.id,x.sk,ctx.d):null})).filter(r=>Object.keys(r.x).length);
+      if(!rows.length) return ""; return `<div class="q">${head}<small>From your Event Brief.</small><div class="summary"><table><thead><tr><th>Session</th><th>Lap time</th><th>Gap</th><th>Pos</th><th>Weight</th><th>Tyres</th><th>Biggest problem</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${esc(r.s.label)}</td><td>${esc(r.x.laptime||r.x.best||(r.t&&r.t.best)||"–")}</td><td>${esc(r.x.gap||"")}</td><td>${esc(r.x.pos||"")}</td><td>${r.x.wt_pre!=null||r.x.wt_post!=null?esc([r.x.wt_pre,r.x.wt_post].map(v=>v!=null?(+v).toFixed(1):"–").join(" → ")):""}</td><td>${esc([...(r.x.tyres||[]),...(r.x.tags||[]).filter(t=>["New","Fresh","Used","Soft","Medium","Hard"].includes(t))].join(" "))}</td><td>${esc(r.x.problem||"")}</td></tr>`).join("")}</tbody></table></div></div>`; }
   }
   return "";
+}
+/* official timing: match a driver by surname in the session classification */
+const NRM=x=>String(x||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase();
+function tRow(evId,sk,d){ const T=S.timing&&S.timing[evId+"|"+sk]; if(!T||!d) return null; const sn=NRM(d.full_name.split(" ").slice(-1)[0]);
+  const r=(T.rows||[]).find(x=>(d.car_no&&String(x.no||"")===String(d.car_no))||NRM(x.name).split(/\s+/).includes(sn)); return r?{...r,n:(T.rows||[]).filter(x=>x.best).length}:null; }
+const lapMs=t=>{const m=String(t||"").match(/^(\d+):(\d+(?:\.\d+)?)$/);return m?+m[1]*60000+Math.round(+m[2]*1000):null};
+function bestLapsCard(e,drs){
+  const ses=(e.sessions||[]).filter(x=>S.timing&&S.timing[e.id+"|"+x.key]); if(!ses.length||!drs.length) return "";
+  const C=drs.map(d=>{ const c=ses.map(x=>tRow(e.id,x.key,d)); const best=c.filter(r=>r&&lapMs(r.best)).sort((a,b)=>lapMs(a.best)-lapMs(b.best))[0]; return {d,c,best}; });
+  const cell=(r,best)=>r&&lapMs(r.best)?`<span class="lt ${best&&r.best===best.best?"pb":""}">${esc(r.best)}</span><small>P${r.pos}${r.gap?" · "+esc(r.gap):" · Fastest"}</small>${r.laps?`<small>${r.laps} laps</small>`:""}`:r?`<small>${esc(r.best||"No time")}</small>`:"–";
+  return `<div class="card"><div class="card-h"><h2>Best laps</h2><span class="eyebrow">Official timing</span></div><div class="summary"><table class="laps"><thead><tr><th>Session</th>${C.map(({d})=>`<th>${drs.length>1?"#"+esc(d.car_no)+" "+esc(d.full_name.split(" ").slice(-1)[0]):"Lap · position"}</th>`).join("")}</tr></thead><tbody>
+    ${ses.map((x,i)=>`<tr><td>${esc(x.label)}</td>${C.map(({c,best})=>`<td>${cell(c[i],best)}</td>`).join("")}</tr>`).join("")}
+    <tr class="tot"><td>Best</td>${C.map(({best})=>`<td>${best?`<span class="lt pb">${esc(best.best)}</span>`:"–"}</td>`).join("")}</tr></tbody></table></div><small class="muted" style="font-size:.72rem">Purple is the best lap of the event.</small></div>`;
 }
 /* weight picker: 40.0–110.0 kg in 0.1 steps; the wheel opens at the last weight */
 function WOPTS(sel){ const v=Math.round(+sel*10); let o=""; for(let i=400;i<=1100;i++) o+=`<option value="${(i/10).toFixed(1)}"${i===v?" selected":""}>${(i/10).toFixed(1)} kg</option>`; return o; }
@@ -253,7 +269,9 @@ function renderBrief(evId,drvId,kind,entry){
   if(kind==="event"){
     if(entry){ one=evEntries(data,e,b).find(x=>x.k===decodeURIComponent(entry));
       if(!one){ location.hash=`#/b/${evId}/${drvId}/event`; return; }
-      body=`<div class="sec" style="--qc:var(--s2)">${FIELDS.event.map(f=>fieldHTML(f,one.f,{...ctx,key,prefix:`s.${one.k}.`})).join("")}</div>`;
+      const first=evEntries(data,e,b).find(x=>x.sk===one.sk), T=one.sk&&first&&first.k===one.k?tRow(e.id,one.sk,d):null;
+      if(T&&!isEng()){ const tgt=(data.s=data.s||{})[one.k]=(data.s[one.k]||{}); let ch=false; [["laptime",T.best],["gap",T.gap||(T.pos===1?"Fastest":"")],["pos",T.pos?"P"+T.pos:""]].forEach(([k,v])=>{ if(v&&lapMs(T.best)&&!tgt[k]){ tgt[k]=v; ch=true; } }); if(ch){ one.f=tgt; queueSave(key,300); } }
+      body=`<div class="sec" style="--qc:var(--s2)">${FIELDS.event.map(f=>fieldHTML(f,one.f,{...ctx,key,t:T&&lapMs(T.best)?T:null,prefix:`s.${one.k}.`})).join("")}</div>`;
     } else body=eventListHTML(e,d,key,data);
   } else body=FIELDS[kind].map(f=>fieldHTML(f,data,ctx)).join("");
   const sent=one?!!one.sent:b.status==="sent", sentAt=one?one.sent:b.sent_at;

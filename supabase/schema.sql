@@ -180,3 +180,19 @@ language sql stable security definer set search_path = '' as $$
 $$;
 revoke execute on function public.rh_driver_engineers(uuid) from anon, public;
 grant execute on function public.rh_driver_engineers(uuid) to authenticated;
+
+-- 2026-10-26: official timing per session (auto-fills lap time / gap / position, best-laps card)
+create table if not exists public.rh_timing (
+  id uuid primary key default gen_random_uuid(),
+  event_id uuid not null references public.rh_events(id) on delete cascade,
+  session_key text not null,
+  rows jsonb not null default '[]'::jsonb,  -- [{pos,no,name,team,best,gap,laps}]
+  source text not null default '',
+  updated_at timestamptz not null default now(),
+  unique (event_id, session_key)
+);
+alter table public.rh_timing enable row level security;
+create policy rh_timing_read on public.rh_timing for select to authenticated using (true);
+create policy rh_timing_ins on public.rh_timing for insert to authenticated with check ((select public.rh_my_role()) = 'coach');
+create policy rh_timing_upd on public.rh_timing for update to authenticated using ((select public.rh_my_role()) = 'coach') with check ((select public.rh_my_role()) = 'coach');
+grant select, insert, update on public.rh_timing to authenticated;

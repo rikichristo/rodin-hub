@@ -198,3 +198,10 @@ fieldset.ro :disabled{opacity:1;cursor:default}
 .wbox:focus-within{border-color:var(--ink)}
 .wdiff{background:transparent;border-style:dashed}
 .wdiff.down b{color:#FFB23F}.wdiff.up b{color:#3FD39A}
+/* official timing */
+.tsrc{color:var(--s4,#3FD39A)!important}
+table.laps td{vertical-align:top;white-space:nowrap}
+table.laps .lt{font-family:var(--mono);font-weight:600;display:block}
+table.laps .lt.pb{color:#B48CFF}
+table.laps small{display:block;color:var(--muted);font-size:.7rem;font-family:var(--mono)}
+table.laps tr.tot td{border-bottom:0;font-weight:600}
