@@ -17,10 +17,11 @@ const KINDS = {
 const FIELDS = {
   pre: [
     {t:"carry", id:"carry", l:"From last time", h:"What you said you'd work on after the last event. Where are you with each one?"},
-    {t:"long", id:"expect", l:"What do you expect from this event?", h:"Track, grip, tyres, weather, the car."},
-    {t:"long", id:"plan", l:"What are you going to do?", h:"Your priorities and what you want to try."},
-    {t:"list3", id:"goals", l:"My 3 goals for this event", c:"var(--s1)"},
-    {t:"text", id:"focus", l:"One thing I'll focus on every run"},
+    {t:"chips", id:"compounds", l:"Tyres for this event", h:"Pick what you'll run. It fills in every session for you; you can still change it there.", o:["Soft","Medium","Hard","Wet"]},
+    {t:"long", id:"expect", l:"What do you expect from this event?", h:"Track, grip, weather, the car. What will be hard here?"},
+    {t:"long", id:"plan", l:"What are you going to do?", legacy:true},
+    {t:"list3", id:"goals", l:"My 3 goals for this event", c:"var(--s1)", h:"What you want to achieve or try. Specific: where on track, what change."},
+    {t:"text", id:"focus", l:"One thing I'll focus on every run", h:"A single cue you can say to yourself in the car."},
     {t:"long", id:"need", l:"What I need from my engineer and the team", h:"Information, set-up direction, run plan, anything."},
     {t:"checks", id:"prep", l:"Preparation done", o:["Sim","Onboards","Last year's data","Track map studied","Engineer briefing"]},
     {t:"scale", id:"ready", l:"How ready do I feel? (1–10)"},
@@ -34,13 +35,13 @@ const FIELDS = {
     {t:"scale", id:"drive", l:"My driving performance (1–10)"},
     {t:"scale", id:"carperf", l:"Car performance (1–10)"},
     {t:"long", id:"warm", l:"Tyre warming", h:"Procedure, which axle, in for Sector 1?"},
-    {t:"long", id:"balance", l:"Balance / grip / evolution", h:"Tyre drop-off, which axle."},
+    {t:"long", id:"balance", l:"Balance / grip / evolution", h:"How it changed through the run: entry, mid, exit. Which axle went first?"},
     {t:"long", id:"braking", l:"Braking", h:"Performance: bias, locking. System: pedal, efficiency, bite."},
     {t:"long", id:"kerbs", l:"Kerb riding / bottoming / aquaplaning", h:"Which area of the circuit?"},
     {t:"long", id:"sequence", l:"Session sequence", h:"Run plan, strategy, execution. e.g. Fresh: OWPPPI"},
     {t:"long", id:"improve", l:"Driving improvements", h:"What could you have done better?"},
-    {t:"long", id:"problem", l:"Biggest problem for lap time", h:"Balance, feeling, etc."},
-    {t:"long", id:"strong", l:"Strong car points", h:"Balance, feeling, etc."},
+    {t:"long", id:"problem", l:"Biggest problem for lap time", h:"The one thing costing the most time: where on track, and why."},
+    {t:"long", id:"strong", l:"Strong car points", h:"What the car does well, and where you can attack with it."},
     {t:"long", id:"other", l:"Other session comments", h:"Reliability issues."},
   ],
   post: [
@@ -49,19 +50,19 @@ const FIELDS = {
     {t:"scale", id:"drive", l:"My driving performance (1–10)"},
     {t:"scale", id:"carperf", l:"Car performance (1–10)"},
     {t:"scale", id:"physical", l:"My physical performance (1–10)"},
-    {t:"list3", id:"positives", l:"Positives", c:"var(--s4)"},
-    {t:"list3", id:"improve", l:"Improvements required", c:"var(--s2)"},
     {t:"goalrev", id:"goalrev", l:"Goals review", h:"Your goals from the Pre-Event Brief."},
-    {t:"list3", id:"lessons", l:"Lessons learned", c:"var(--s5)"},
-    {t:"long", id:"tyres", l:"Tyre learning", h:"e.g. what changed from Hard to Medium."},
-    {t:"list3", id:"car", l:"My 3 action items for the car", c:"var(--s1)"},
-    {t:"list3", id:"sim", l:"My 3 action items for the Sim", c:"var(--s5)"},
+    {t:"list3", id:"positives", l:"Positives", c:"var(--s4)", h:"What went well and you want to keep doing."},
+    {t:"list3", id:"improve", l:"Improvements required", c:"var(--s2)", legacy:true},
+    {t:"list3", id:"lessons", l:"Lessons learned", c:"var(--s5)", h:"What this event taught you about yourself, the car or the track."},
+    {t:"long", id:"tyres", l:ctx=>{const C=compsOf(ctx);return C.length>1?`Tyres: ${C.join(" vs ")}`:C.length?`Tyre learning · ${C[0]}`:"Tyre learning"}, h:ctx=>{const C=compsOf(ctx);return C.length>1?"What changed between them: entry, traction, balance, drop-off. Which suited you, and why?":"Warm-up, peak lap, drop-off over a run, and how you managed it."}},
+    {t:"list3", id:"car", l:"My 3 action items for the car", c:"var(--s1)", h:"What you'll do differently in the real car next time. These carry into your next Pre-Event Brief."},
+    {t:"list3", id:"sim", l:"My 3 action items for the Sim", c:"var(--s5)", h:"What to rehearse or test on the simulator before the next event."},
     {t:"list3", id:"next", l:"Goals for the next event", c:"var(--ink)", h:"These go into your next Pre-Event Brief."},
     {t:"long", id:"team", l:"For my engineer or Noel", h:"Car, set-up, body, energy, food."},
   ],
 };
 
-const TAG_GROUPS=[["Quick verdict",["Good","Bad","Check Data for Answers"]],["Tyre set",["New","Fresh","Used","Soft","Medium","Hard"]],["Corner phase",["Entry","Mid","Exit"]],["Car",["Braking","Lock Up","Traction","Balance","Tyres","Tyre Warm-up"]],["The lap",["Great Lap","Mistake","Traffic","Aborted Lap"]],["Body & energy · for Noel",["Felt Strong","Good Energy","Neck Pain","Leg Pain","Back Pain","Arms / Shoulders","Low Brake Pressure","Grip Strength","Fatigue","Mental Fatigue","Lost Focus","Hot in Car","Thirsty","Hungry","Need More Snacks","Headache","Stomach Issue"]],["Simulator",["Practice on Sim","Sim Correlation","Sim Setup"]],["Me",["Feeling","Mindset","Question for engineer"]]];
+const TAG_GROUPS=[["Quick verdict",["Good","Bad","Check Data for Answers"]],["Tyre set",["New","Fresh","Used","Soft","Medium","Hard","Wet"]],["Corner phase",["Entry","Mid","Exit"]],["Car",["Braking","Lock Up","Traction","Balance","Tyres","Tyre Warm-up"]],["The lap",["Great Lap","Mistake","Traffic","Aborted Lap"]],["Body & energy · for Noel",["Felt Strong","Good Energy","Neck Pain","Leg Pain","Back Pain","Arms / Shoulders","Low Brake Pressure","Grip Strength","Fatigue","Mental Fatigue","Lost Focus","Hot in Car","Thirsty","Hungry","Need More Snacks","Headache","Stomach Issue"]],["Simulator",["Practice on Sim","Sim Correlation","Sim Setup"]],["Me",["Feeling","Mindset","Question for engineer"]]];
 const RTYPE={perf:"Performance run",race:"Race run"};
 const turnsOf=e=>{const m=String(e.track_info||"").match(/(\d+)\s*turns/);return m?+m[1]:0};
 const S = { user:null, open:{}, profile:null, drivers:[], series:[], events:[], briefs:{}, route:null, evSel:ls.get("ev"), sessSel:{} };
@@ -236,6 +237,8 @@ function carryItems(e,drvId){
 }
 function fieldHTML(f,data,ctx){
   const v=getP(data,f.id);
+  if(f.legacy){ const v0=getP(data,f.id); if(!(Array.isArray(v0)?v0.some(x=>x&&String(x).trim()):v0&&String(v0).trim())) return ""; }
+  if(typeof f.l==="function"||typeof f.h==="function") f={...f,l:typeof f.l==="function"?f.l(ctx):f.l,h:typeof f.h==="function"?f.h(ctx):f.h};
   const head=`<${f.t==="scale"||f.t==="chips"||f.t==="checks"||f.t==="carry"||f.t==="goalrev"||f.t==="summary"?"div class=\"lbl\"":`label for="f-${f.id}"`}>${esc(f.l)}</${f.t==="scale"||f.t==="chips"||f.t==="checks"||f.t==="carry"||f.t==="goalrev"||f.t==="summary"?"div":"label"}>${f.h?`<small>${esc(f.h)}</small>`:""}`;
   const P=ctx.prefix||"";
   switch(f.t){
@@ -291,6 +294,7 @@ function WOPTS(sel){ const v=Math.round(+sel*10); let o=""; for(let i=400;i<=110
 function lastWeight(ctx){ if(!ctx||!ctx.e||!ctx.d) return null; const EB=brief(ctx.e.id,ctx.d.id,"event").data||{}; let w=null;
   evEntries(EB,ctx.e).forEach(x=>{ if(x.f.wt_pre!=null) w=x.f.wt_pre; if(x.f.wt_post!=null) w=x.f.wt_post; }); return w; }
 /* event brief: one entry per session the driver adds */
+function compsOf(ctx){ if(!ctx||!ctx.e||!ctx.d) return []; const P=brief(ctx.e.id,ctx.d.id,"pre").data||{}; return ["Soft","Medium","Hard","Wet"].filter(c=>(P.compounds||[]).includes(c)); }
 function evEntries(data,e,b){
   const ses=e.sessions||[], L=(data.list||[]).slice(), have=new Set(L.map(x=>x.k));
   Object.keys(data.s||{}).forEach(k=>{ if(!have.has(k)&&Object.keys(data.s[k]||{}).length){ const ss=ses.find(x=>x.key===k); L.push({k,label:ss?ss.label:k,sk:k,sent:b&&b.status==="sent"?b.sent_at:null}); } });
@@ -316,6 +320,9 @@ function renderBrief(evId,drvId,kind,entry){
   if(kind==="event"){
     if(entry){ one=evEntries(data,e,b).find(x=>x.k===decodeURIComponent(entry));
       if(!one){ location.hash=`#/b/${evId}/${drvId}/event`; return; }
+      const C=compsOf(ctx);
+      if(!isEng()&&C.length===1&&!one.f.tyauto){ const tgt=(data.s=data.s||{})[one.k]=(data.s[one.k]||{}), tg=tgt.tags||[];
+        if(!tg.some(t=>["Soft","Medium","Hard","Wet"].includes(t))) tgt.tags=[...tg,C[0]]; tgt.tyauto=true; one.f=tgt; queueSave(key,300); }
       const first=evEntries(data,e,b).find(x=>x.sk===one.sk), T=one.sk&&first&&first.k===one.k?tRow(e.id,one.sk,d):null;
       if(T&&!isEng()){ const tgt=(data.s=data.s||{})[one.k]=(data.s[one.k]||{}); let ch=false; [["laptime",T.best],["gap",T.gap||(T.pos===1?"Fastest":"")],["pos",T.pos?"P"+T.pos:""]].forEach(([k,v])=>{ if(v&&lapMs(T.best)&&!tgt[k]){ tgt[k]=v; ch=true; } }); if(ch){ one.f=tgt; queueSave(key,300); } }
       body=`<div class="sec" style="--qc:var(--s2)">${FIELDS.event.map(f=>fieldHTML(f,one.f,{...ctx,key,t:T&&lapMs(T.best)?T:null,prefix:`s.${one.k}.`})).join("")}</div>`;
@@ -342,7 +349,11 @@ function anchorRoute(el,toPick){
   if(toPick){ const pk=document.querySelector("#form .pick"); if(pk){ const hb=$("header.top").getBoundingClientRect().bottom+10, r=pk.getBoundingClientRect(); if(r.top<hb||r.top>innerHeight*.6) scrollTo({top:scrollY+r.top-hb,behavior:"smooth"}); } return; }
   const nb=[...document.querySelectorAll(sel)].filter(x=>!!x.closest(".panel")===inP)[i]; if(nb){ const d=nb.getBoundingClientRect().top-top; if(Math.abs(d)>1) scrollBy(0,d); }
 }
-function autosize(t){ t.style.height="auto"; t.style.height=Math.min(t.scrollHeight+2,innerHeight*.5)+"px"; }
+function autosize(t){
+  /* hold the page height while the box measures itself, so Safari doesn't scroll the page */
+  const y=scrollY, de=document.documentElement; de.style.minHeight=de.scrollHeight+"px";
+  t.style.height="auto"; t.style.height=Math.min(t.scrollHeight+2,Math.max(innerHeight*.5,160))+"px";
+  de.style.minHeight=""; if(Math.abs(scrollY-y)>1) scrollTo(0,y); }
 
 /* ---------- account sheet (simple) ---------- */
 function accountHTML(){

@@ -242,3 +242,4 @@ h1.ph{font-family:var(--display);font-weight:400;text-transform:uppercase;letter
 .wxdays{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px}
 .wxd{display:grid;gap:2px;border:1px solid var(--line2);border-radius:8px;padding:10px 12px;font-size:.86rem}
 .wxd .ic{font-size:1.4rem}.wxd small{color:var(--muted);font-size:.72rem}
+.chips button[data-v="Wet"]{border:2px solid #4EA8FF}.tag[data-v="Wet"]{border-color:#4EA8FF}
