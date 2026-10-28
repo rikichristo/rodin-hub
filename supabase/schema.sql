@@ -200,3 +200,6 @@ grant select, insert, update on public.rh_timing to authenticated;
 -- 2026-10-26: push reminders (see supabase/functions/rh-remind). VAPID keys + cron secret live in rh_config (no client access).
 -- tables: rh_config(key,value), rh_push_subs(user_id, endpoint unique, sub jsonb), rh_push_log(tag pk)
 -- cron: select cron.schedule('rh-remind','*/5 * * * *', $$select net.http_post(url:='https://<project>.supabase.co/functions/v1/rh-remind', headers:=jsonb_build_object('Content-Type','application/json','x-cron',(select value from public.rh_config where key='cron_secret')), body:='{}'::jsonb)$$);
+
+-- 2026-10-28: drivers add their own events (owner_driver_id, driver_ids), car, lat/lon for weather;
+-- rh_dnotes (private personal notes, optional share with coach); rh_lists (personal checklists). See migration rh_driver_events_notes_lists.

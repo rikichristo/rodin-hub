@@ -28,6 +28,7 @@ const FIELDS = {
   ],
   event: [
     {t:"result", id:"result", l:"Result"},
+    {t:"wx", id:"wx", l:"Weather"},
     {t:"weight", id:"wt", l:"Driver weight", h:"Weigh in before the session and again straight after. Tap a box and scroll."},
     {t:"pickers", id:"pick", l:"Quick tags", h:"Run, tyres, how it felt, corners. Tap, then Done."},
     {t:"long", id:"warm", l:"Tyre warming", h:"Procedure, which axle, in for Sector 1?"},
@@ -97,7 +98,7 @@ const isEng = () => S.profile && (S.profile.role==="engineer"||S.profile.role===
 const isStaff = () => isCoach()||isEng();
 const sentTo = () => "Riki"+(S.engNames?" & "+S.engNames:"");
 const myDriver = () => S.drivers.find(d=>d.id===S.profile.driver_id);
-function eventsFor(driver){ return S.events.filter(e=>!driver||!e.series_id||e.series_id===driver.series_id); }
+function eventsFor(driver){ return S.events.filter(e=>!driver||((!e.series_id||e.series_id===driver.series_id)&&(!e.driver_ids||e.driver_ids.includes(driver.id)))); }
 function defaultEvent(list){ const t=today(); return list.find(e=>(e.date_to||e.date_from||"")>=t) || list[list.length-1] || null; }
 function brief(evId,drvId,kind){ return S.briefs[bkey(evId,drvId,kind)] || {event_id:evId,driver_id:drvId,kind,data:{},status:"draft"}; }
 
@@ -172,6 +173,10 @@ function route(){
   const h=location.hash.replace(/^#\/?/,"").split("/").filter(Boolean);
   S.route=h; renderBar();
   if(h[0]==="b"&&h[1]&&h[2]&&KINDS[h[3]]) return renderBrief(h[1],h[2],h[3],h[4]);
+  if(h[0]==="notes") return h[1]?renderNote(h[1]):renderNotes();
+  if(h[0]==="lists") return renderLists();
+  if(h[0]==="newev"){ if(!X.ef||X.ef.id) X.ef=null; return renderEvForm(null); }
+  if(h[0]==="edev"&&h[1]) return renderEvForm(h[1]);
   if(h[0]==="account"){ $("#main").innerHTML=`<div class="noprint"><a class="link" href="#/">← Home</a></div>`+accountHTML(); return; }
   return isStaff()?renderCoach():renderDriverHome();
 }
@@ -190,7 +195,7 @@ function evPicker(list,sel){
 }
 function evHead(e){
   const ser=S.series.find(s=>s.id===e.series_id);
-  return `<div class="evhead"><span class="meta">${esc([ser&&ser.name,e.kind==="test"?"Test":e.kind==="race"?"Race weekend":"Simulator",e.date_from&&(fmtDay(e.date_from)+(e.date_to&&e.date_to!==e.date_from?" – "+fmtDay(e.date_to):""))].filter(Boolean).join(" · "))}</span><h1>${esc(e.location?e.location.split(",")[0]:e.name)} · ${esc(e.name)}</h1>${e.track?`<span class="muted" style="font-size:.86rem">${esc(e.track)}${e.track_info?" · "+esc(e.track_info):""}</span>`:""}</div>`;
+  return `<div class="evhead"><span class="meta">${esc([ser&&ser.name,e.kind==="test"?"Test":e.kind==="race"?"Race weekend":"Simulator",e.date_from&&(fmtDay(e.date_from)+(e.date_to&&e.date_to!==e.date_from?" – "+fmtDay(e.date_to):""))].filter(Boolean).join(" · "))}</span><h1>${esc(e.location?e.location.split(",")[0]:e.name)} · ${esc(e.name)}</h1>${e.car?`<span class="muted" style="font-size:.86rem">Car · ${esc(e.car)}</span>`:""}${e.track?`<span class="muted" style="font-size:.86rem">${esc(e.track)}${e.track_info?" · "+esc(e.track_info):""}</span>`:""}</div>`;
 }
 function statusChip(b,short){ if(b.kind==="event"&&b.data&&(b.data.list||b.data.s)){ const e=S.events.find(x=>x.id===b.event_id), L=e?evEntries(b.data,e,b):[], n=L.filter(x=>x.sent).length;
     if(L.length) return n?`<span class="chip sent" title="${n} session${n>1?"s":""} sent">✓ ${n}</span>`:`<span class="chip draft">Draft</span>`; } return b.status==="sent"?`<span class="chip sent">${short?"✓ "+esc(fmtTime(b.sent_at)):"Sent "+esc(fmtWhen(b.sent_at))}</span>`:Object.keys(b.data||{}).length?`<span class="chip draft">Draft</span>`:`<span class="chip">${short?"To do":"Not started"}</span>`; }
@@ -198,23 +203,25 @@ function renderDriverHome(){
   const d=myDriver();
   if(!d){ $("#main").innerHTML=`<div class="notice"><b>Your account isn't linked to a driver yet.</b><span>Ask Riki.</span></div>`; return; }
   const list=eventsFor(d); let e=list.find(x=>x.id===S.evSel)||defaultEvent(list);
-  if(!e){ $("#main").innerHTML=`<div class="notice"><b>No events yet.</b><span>Riki will add the next one.</span></div>`; return; }
-  $("#main").innerHTML=`${evPicker(list,e.id)}${evHead(e)}
-    <div class="steps">${Object.entries(KINDS).map(([k,K])=>{const b=brief(e.id,d.id,k);return `<a class="step" style="--c:${K.c};text-decoration:none" href="#/b/${e.id}/${d.id}/${k}"><span class="n">${K.n}</span><span><b>${K.title}</b><small>${K.sub}</small></span>${statusChip(b)}</a>`}).join("")}</div>${pushCard()}${bestLapsCard(e,[d])}`;
+  if(!e){ $("#main").innerHTML=`${navHTML("ev")}<div class="notice"><b>No events yet.</b><span>Riki will add the next one, or add your own.</span><a class="btn primary" href="#/newev">+ Add event</a></div>`; return; }
+  $("#main").innerHTML=`${navHTML("ev")}<div class="evbar">${evPicker(list,e.id)}<a class="btn sm" href="#/newev">+ Add event</a></div>${evHead(e)}${e.owner_driver_id===d.id?`<div class="noprint" style="margin-top:-6px"><a class="link" href="#/edev/${e.id}">Edit this event</a></div>`:""}
+    <div class="steps">${Object.entries(KINDS).map(([k,K])=>{const b=brief(e.id,d.id,k);return `<a class="step" style="--c:${K.c};text-decoration:none" href="#/b/${e.id}/${d.id}/${k}"><span class="n">${K.n}</span><span><b>${K.title}</b><small>${K.sub}</small></span>${statusChip(b)}</a>`}).join("")}</div>${wxCardHolder(e)}${pushCard()}${bestLapsCard(e,[d])}`;
+  fillWxCard();
 }
 
 /* ---------- coach home ---------- */
 function renderCoach(){
   const list=S.events; let e=list.find(x=>x.id===S.evSel)||defaultEvent(list);
   if(!e){ $("#main").innerHTML=`<div class="notice"><b>No events yet.</b></div>`; return; }
-  const drs=S.drivers.filter(d=>!e.series_id||d.series_id===e.series_id);
+  const drs=S.drivers.filter(d=>(!e.series_id||d.series_id===e.series_id)&&(!e.driver_ids||e.driver_ids.includes(d.id)));
   const sent=k=>drs.filter(d=>brief(e.id,d.id,k).status==="sent").length;
   $("#main").innerHTML=`${evPicker(list,e.id)}${evHead(e)}
     <div class="card"><div class="card-h"><h2>${isEng()?(drs.length>1?"Your drivers":"Your driver"):"Drivers"}</h2><span class="eyebrow">Pre ${sent("pre")}/${drs.length} · Event ${sent("event")}/${drs.length} · Post ${sent("post")}/${drs.length}</span></div>
     <div class="grid">${drs.map(d=>`<div class="drow"><div class="h"><span class="no">${esc(d.car_no)}</span><b>${esc(d.full_name)}</b>${isCoach()&&S.engOf[d.id]?`<small class="eng">Eng · ${esc(S.engOf[d.id].join(", "))}</small>`:""}</div>
       <div class="b3">${Object.entries(KINDS).map(([k,K])=>{const b=brief(e.id,d.id,k);return `<button style="--c:${K.c}" data-act="go" data-href="#/b/${e.id}/${d.id}/${k}" ${isEng()&&!(S.briefs[bkey(e.id,d.id,k)])?"disabled":""}><b>${K.title.replace("Post-Event ","Post ").replace("Pre-Event ","Pre ")}</b>${statusChip(b,true)}</button>`}).join("")}</div></div>`).join("")}</div></div>
-    ${bestLapsCard(e,drs)}${pushCard()}
+    ${bestLapsCard(e,drs)}${wxCardHolder(e)}${isCoach()?`<div class="sendbox"><a class="btn" href="#/notes">Drivers' shared notes</a><a class="btn" href="#/newev">+ Add event</a>${e.owner_driver_id||e.created_by===S.user.id?`<a class="btn" href="#/edev/${e.id}">Edit event</a>`:""}</div>`:""}${pushCard()}
     <p class="muted" style="font-size:.82rem;margin:0">${isEng()?"Each brief appears here as soon as your driver presses Send. Tap a ✓ to read it.":"Tap any brief to read it. You can edit too; drivers see your changes."}</p>`;
+  fillWxCard();
 }
 
 /* ---------- brief page ---------- */
@@ -246,6 +253,8 @@ function fieldHTML(f,data,ctx){
       if(o==="turns") panel=`<div class="panel"><div class="w turns"><button type="button" class="all" data-act="pallc" data-f="${P}" aria-pressed="${!!allc}">All corners</button>${Array.from({length:nT},(_,i)=>i+1).map(n=>`<button type="button" data-act="pturn" data-f="${P}" data-v="${n}" aria-pressed="${!allc&&turns.includes(n)}">T${n}</button>`).join("")}</div><div class="foot2"><span></span>${done}</div></div>`;
       const chosen=[rv,...cs,...tags].filter(Boolean);
       return `<div class="q"><div class="lbl">${esc(f.l)}</div>${f.h?`<small>${esc(f.h)}</small>`:""}<div class="pick">${btn("run",rv||"Run",0)}${btn("tags","Tags",tags.length)}${nT?btn("turns","Corners",cs.length):""}</div>${chosen.length?`<div class="chosen">${chosen.map(c=>`<span class="tag" data-v="${esc(c)}">${esc(c)}</span>`).join("")}</div>`:""}${panel}</div>`; }
+    case "wx": { const w=getP(data,"wx"), k=(P.match(/^s\.([^.]+)\./)||[])[1]||"";
+      return `<div class="q"><div class="lbl">${esc(f.l)}</div><div class="wxline" data-wx="${esc(k)}">${w?wxLine(w)+(w.fc?" <small>(forecast)</small>":""):ctx.e&&ctx.e.lat!=null?`<span class="muted">Logs itself on the day of the session.</span>`:`<span class="muted">No location for this event.</span>`}</div><label class="tt"><span>Track temp °C</span><input type="text" id="f-${P}track_t" data-f="${P}track_t" value="${esc(getP(data,"track_t")||"")}" inputmode="decimal" placeholder="e.g. 24"></label></div>`; }
     case "weight": { const pre=getP(data,"wt_pre"), post=getP(data,"wt_post"), base=lastWeight(ctx)||70;
       const box=(k,l,v)=>`<label class="wbox ${v!=null?"set":""}"><span>${l}</span><b>${v!=null?(+v).toFixed(1)+" kg":"– kg"}</b><select data-f="${P}${k}" data-num aria-label="${l} weight in kg">${WOPTS((v??base))}</select></label>`;
       const diff=pre!=null&&post!=null?(post-pre):null;
@@ -321,6 +330,7 @@ function renderBrief(evId,drvId,kind,entry){
         ${kind==="post"?`<button class="btn" data-act="print">Save as PDF</button>`:""}</div>`}
     </div>`;
   document.querySelectorAll("#form textarea").forEach(autosize);
+  if(one) autoWxEntry(e,key,one);
 }
 /* re-render without the page jumping: keep the tapped control where it was */
 function anchorRoute(el,toPick){

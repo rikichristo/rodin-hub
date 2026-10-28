@@ -63,7 +63,7 @@ async function runReminders(dry: boolean, at?: { date?: string; min?: number }) 
     if (!today.length) continue;
     const lastEnd = Math.max(...today.map((s: any) => endMin(s.time)!));
     const isLastDay = e.date_to === date;
-    const eds = (drivers || []).filter((d: any) => !e.series_id || d.series_id === e.series_id);
+    const eds = (drivers || []).filter((d: any) => (!e.series_id || d.series_id === e.series_id) && (!e.driver_ids || e.driver_ids.includes(d.id)));
     for (const d of eds) {
       const users = (profs || []).filter((p: any) => p.driver_id === d.id);
       if (!users.length) continue;
