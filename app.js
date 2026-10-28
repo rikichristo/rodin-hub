@@ -31,6 +31,8 @@ const FIELDS = {
     {t:"wx", id:"wx", l:"Weather"},
     {t:"weight", id:"wt", l:"Driver weight", h:"Weigh in before the session and again straight after. Tap a box and scroll."},
     {t:"pickers", id:"pick", l:"Quick tags", h:"Run, tyres, how it felt, corners. Tap, then Done."},
+    {t:"scale", id:"drive", l:"My driving performance (1–10)"},
+    {t:"scale", id:"carperf", l:"Car performance (1–10)"},
     {t:"long", id:"warm", l:"Tyre warming", h:"Procedure, which axle, in for Sector 1?"},
     {t:"long", id:"balance", l:"Balance / grip / evolution", h:"Tyre drop-off, which axle."},
     {t:"long", id:"braking", l:"Braking", h:"Performance: bias, locking. System: pedal, efficiency, bite."},
@@ -267,7 +269,7 @@ function fieldHTML(f,data,ctx){
     case "goalrev": { const pre=brief(ctx.e.id,ctx.d.id,"pre").data||{}, G=(pre.goals||[]).filter(x=>x&&x.trim()); if(!G.length) return ""; const st=v||{};
       return `<div class="q">${head}<div class="carry">${G.map((g,i)=>`<div class="ci"><div class="t">${esc(g)}</div><div class="opts">${[["done","Achieved"],["part","Partly"],["not","Not this time"]].map(([k,l])=>`<button type="button" data-act="setkey" data-f="goalrev.${i}" data-v="${k}" aria-pressed="${st[i]===k}">${l}</button>`).join("")}</div></div>`).join("")}</div></div>`; }
     case "summary": { const EB=brief(ctx.e.id,ctx.d.id,"event").data||{}, rows=evEntries(EB,ctx.e).map(x=>({s:{label:x.label},x:x.f,t:x.sk?tRow(ctx.e.id,x.sk,ctx.d):null})).filter(r=>Object.keys(r.x).length);
-      if(!rows.length) return ""; return `<div class="q">${head}<small>From your Event Brief.</small><div class="summary"><table><thead><tr><th>Session</th><th>Lap time</th><th>Gap</th><th>Pos</th><th>Weight</th><th>Tyres</th><th>Biggest problem</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${esc(r.s.label)}</td><td>${esc(r.x.laptime||r.x.best||(r.t&&r.t.best)||"–")}</td><td>${esc(r.x.gap||"")}</td><td>${esc(r.x.pos||"")}</td><td>${r.x.wt_pre!=null||r.x.wt_post!=null?esc([r.x.wt_pre,r.x.wt_post].map(v=>v!=null?(+v).toFixed(1):"–").join(" → ")):""}</td><td>${esc([...(r.x.tyres||[]),...(r.x.tags||[]).filter(t=>["New","Fresh","Used","Soft","Medium","Hard"].includes(t))].join(" "))}</td><td>${esc(r.x.problem||"")}</td></tr>`).join("")}</tbody></table></div></div>`; }
+      if(!rows.length) return ""; return `<div class="q">${head}<small>From your Event Brief.</small><div class="summary"><table><thead><tr><th>Session</th><th>Lap time</th><th>Gap</th><th>Pos</th><th>Drive / Car</th><th>Weight</th><th>Tyres</th><th>Biggest problem</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${esc(r.s.label)}</td><td>${esc(r.x.laptime||r.x.best||(r.t&&r.t.best)||"–")}</td><td>${esc(r.x.gap||"")}</td><td>${esc(r.x.pos||"")}</td><td>${r.x.drive||r.x.carperf?esc((r.x.drive||"–")+" / "+(r.x.carperf||"–")):""}</td><td>${r.x.wt_pre!=null||r.x.wt_post!=null?esc([r.x.wt_pre,r.x.wt_post].map(v=>v!=null?(+v).toFixed(1):"–").join(" → ")):""}</td><td>${esc([...(r.x.tyres||[]),...(r.x.tags||[]).filter(t=>["New","Fresh","Used","Soft","Medium","Hard"].includes(t))].join(" "))}</td><td>${esc(r.x.problem||"")}</td></tr>`).join("")}</tbody></table></div></div>`; }
   }
   return "";
 }
