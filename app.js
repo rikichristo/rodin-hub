@@ -38,7 +38,8 @@ const FIELDS = {
     {t:"long", id:"balance", l:"Balance / grip / evolution", h:"How it changed through the run: entry, mid, exit. Which axle went first?"},
     {t:"long", id:"braking", l:"Braking", h:"Performance: bias, locking. System: pedal, efficiency, bite."},
     {t:"long", id:"kerbs", l:"Kerb riding / bottoming / aquaplaning", h:"Which area of the circuit?"},
-    {t:"long", id:"sequence", l:"Session sequence", h:"Run plan, strategy, execution. e.g. Fresh: OWPPPI"},
+    {t:"seq", id:"seq", l:"Run sequence", h:"Tap each lap in order. It builds your run plan below."},
+    {t:"text", id:"sequence", l:"Run plan notes", h:"Optional: strategy, execution, anything about the run."},
     {t:"long", id:"improve", l:"Driving improvements", h:"What could you have done better?"},
     {t:"long", id:"problem", l:"Biggest problem for lap time", h:"The one thing costing the most time: where on track, and why."},
     {t:"long", id:"strong", l:"Strong car points", h:"What the car does well, and where you can attack with it."},
@@ -63,6 +64,7 @@ const FIELDS = {
 };
 
 const TAG_GROUPS=[["Quick verdict",["Good","Bad","Check Data for Answers"]],["Tyre set",["New","Fresh","Used","Soft","Medium","Hard","Wet"]],["Corner phase",["Entry","Mid","Exit"]],["Car",["Braking","Lock Up","Traction","Balance","Tyres","Tyre Warm-up"]],["The lap",["Great Lap","Mistake","Traffic","Aborted Lap"]],["Body & energy · for Noel",["Felt Strong","Good Energy","Neck Pain","Leg Pain","Back Pain","Arms / Shoulders","Low Brake Pressure","Grip Strength","Fatigue","Mental Fatigue","Lost Focus","Hot in Car","Thirsty","Hungry","Need More Snacks","Headache","Stomach Issue"]],["Simulator",["Practice on Sim","Sim Correlation","Sim Setup"]],["Me",["Feeling","Mindset","Question for engineer"]]];
+const SEQ=[["O","Out"],["W","Warm"],["P","Push"],["C","Cool"],["A","Abort"],["I","In"]];
 const RTYPE={perf:"Performance run",race:"Race run"};
 const turnsOf=e=>{const m=String(e.track_info||"").match(/(\d+)\s*turns/);return m?+m[1]:0};
 const S = { user:null, open:{}, profile:null, drivers:[], series:[], events:[], briefs:{}, route:null, evSel:ls.get("ev"), sessSel:{} };
@@ -264,6 +266,10 @@ function fieldHTML(f,data,ctx){
       const box=(k,l,v)=>`<label class="wbox ${v!=null?"set":""}"><span>${l}</span><b>${v!=null?(+v).toFixed(1)+" kg":"– kg"}</b><select data-f="${P}${k}" data-num aria-label="${l} weight in kg">${WOPTS((v??base))}</select></label>`;
       const diff=pre!=null&&post!=null?(post-pre):null;
       return `<div class="q">${head}<div class="wrow">${box("wt_pre","Before",pre)}${box("wt_post","After",post)}<div class="wdiff ${diff==null?"":diff<0?"down":"up"}"><span>Change</span><b>${diff==null?"–":(diff>0?"+":diff<0?"−":"±")+Math.abs(diff).toFixed(1)+" kg"}</b></div></div></div>`; }
+    case "seq": { const L=getP(data,f.id)||[], n=L.length;
+      return `<div class="q">${head}<div class="seqbtns">${SEQ.map(([c,l])=>`<button type="button" data-act="seqadd" data-f="${P}${f.id}" data-v="${c}"><b>${c}</b><small>${l}</small></button>`).join("")}</div>
+        <div class="seqrow" aria-label="Run plan">${n?L.map((c,i)=>`<span class="seqt" title="${esc((SEQ.find(x=>x[0]===c)||[])[1]||c)}"><i>${i+1}</i>${esc(c)}</span>`).join(""):`<span class="muted" style="font-size:.86rem">Your run plan appears here.</span>`}</div>
+        ${n?`<div class="seqact noprint"><span class="mono muted" style="font-size:.78rem">${esc(L.join(""))} · ${n} lap${n>1?"s":""}</span><span><button type="button" class="btn sm" data-act="seqpop" data-f="${P}${f.id}">Undo</button> <button type="button" class="btn sm" data-act="seqclr" data-f="${P}${f.id}">Clear</button></span></div>`:""}</div>`; }
     case "scale": return `<div class="q">${head}<div class="scale">${[1,2,3,4,5,6,7,8,9,10].map(n=>`<button type="button" data-act="set" data-f="${P}${f.id}" data-v="${n}" aria-pressed="${v===n}">${n}</button>`).join("")}</div></div>`;
     case "list3": return `<div class="q">${head}<div class="list3" style="--qc:${f.c||"var(--s1)"}">${[0,1,2].map(i=>`<div class="n"><i>${"ABC"[i]}</i><textarea rows="1" id="f-${P}${f.id}-${i}" data-f="${P}${f.id}.${i}">${esc((v||[])[i]||"")}</textarea></div>`).join("")}</div></div>`;
     case "chips": case "checks": { const L=v||[]; return `<div class="q">${head}<div class="chips">${f.o.map(o=>`<button type="button" data-act="toggle" data-f="${P}${f.id}" data-v="${esc(o)}" aria-pressed="${L.includes(o)}">${esc(o)}</button>`).join("")}</div></div>`; }
@@ -389,6 +395,7 @@ document.addEventListener("click",async ev=>{
   if(a==="psetk"){ const cur=getP(B.data,b.dataset.f); setP(B.data,b.dataset.f,cur===b.dataset.v?null:b.dataset.v); queueSave(key); anchorRoute(b); return; }
   if(a==="pallc"){ const P=b.dataset.f; setP(B.data,P+"allc",!getP(B.data,P+"allc")); if(getP(B.data,P+"allc")) setP(B.data,P+"turns",[]); queueSave(key); anchorRoute(b); return; }
   if(a==="pturn"){ const P=b.dataset.f, n=+b.dataset.v, L=getP(B.data,P+"turns")||[]; setP(B.data,P+"allc",false); setP(B.data,P+"turns",L.includes(n)?L.filter(x=>x!==n):[...L,n]); queueSave(key); anchorRoute(b); return; }
+  if(a==="seqadd"||a==="seqpop"||a==="seqclr"){ const L=(getP(B.data,b.dataset.f)||[]).slice(); if(a==="seqadd") L.push(b.dataset.v); else if(a==="seqpop") L.pop(); else L.length=0; setP(B.data,b.dataset.f,L); queueSave(key); anchorRoute(b); return; }
   if(a==="toggle"){ const L=getP(B.data,b.dataset.f)||[]; const v=b.dataset.v; setP(B.data,b.dataset.f,L.includes(v)?L.filter(x=>x!==v):[...L,v]); queueSave(key); anchorRoute(b); return; }
   if(a==="setkey"){ const cur=getP(B.data,b.dataset.f); setP(B.data,b.dataset.f,cur===b.dataset.v?null:b.dataset.v); queueSave(key); route(); return; }
   if(a==="send"){ document.querySelectorAll("#form [data-f]").forEach(x=>{ if(x.matches("input,textarea")) setP(B.data,x.dataset.f,x.value); });
