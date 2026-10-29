@@ -237,7 +237,14 @@ function carryItems(e,drvId){
   [["car","Car"],["sim","Sim"],["next","Goal"]].forEach(([k,l])=>(P.data[k]||[]).forEach((t,i)=>{ if(t&&t.trim()) out.push({key:k+i,label:l,text:t.trim(),from:pe?(pe.location||pe.name).split(",")[0]:""}); }));
   return out;
 }
+/* every question can hold photos (not the read-only summaries) */
 function fieldHTML(f,data,ctx){
+  const h=fieldHTML0(f,data,ctx); if(!h||!ctx||!ctx.e||!ctx.d||!ctx.kind||["summary","carry","goalrev"].includes(f.t)||typeof phStrip!=="function") return h;
+  const P=ctx.prefix||"", path=P+"ph."+f.id, L=getP(data,"ph."+f.id), key=bkey(ctx.e.id,ctx.d.id,ctx.kind);
+  const strip=phStrip(L,{kind:"brief",key,path,dir:"b",drv:ctx.d.id},!isEng());
+  return strip?h.replace(/<\/div>\s*$/,strip+"</div>"):h;
+}
+function fieldHTML0(f,data,ctx){
   const v=getP(data,f.id);
   if(f.legacy){ const v0=getP(data,f.id); if(!(Array.isArray(v0)?v0.some(x=>x&&String(x).trim()):v0&&String(v0).trim())) return ""; }
   if(typeof f.l==="function"||typeof f.h==="function") f={...f,l:typeof f.l==="function"?f.l(ctx):f.l,h:typeof f.h==="function"?f.h(ctx):f.h};
@@ -320,7 +327,7 @@ function renderBrief(evId,drvId,kind,entry){
   const e=S.events.find(x=>x.id===evId), d=S.drivers.find(x=>x.id===drvId);
   if(!e||!d){ $("#main").innerHTML=`<div class="notice"><b>Not found.</b><a href="#/">Back</a></div>`; return; }
   const K=KINDS[kind], key=bkey(evId,drvId,kind); if(!S.briefs[key]) S.briefs[key]=brief(evId,drvId,kind);
-  const b=S.briefs[key], data=b.data||(b.data={}), ctx={e,d};
+  const b=S.briefs[key], data=b.data||(b.data={}), ctx={e,d,kind};
   let body="";
   let one=null;
   if(kind==="event"){

@@ -126,6 +126,7 @@ async function renderNote(id){
     <div class="q"><div class="lbl">Weight</div><div class="wrow">${wbox("wt_pre","Before",d.wt_pre)}${wbox("wt_post","After",d.wt_post)}<div class="wdiff ${diff==null?"":diff<0?"down":"up"}"><span>Change</span><b>${diff==null?"–":(diff>0?"+":diff<0?"−":"±")+Math.abs(diff).toFixed(1)+" kg"}</b></div></div></div>
     <div class="q"><label class="lbl" for="n-lap">Best lap</label>${tr&&lapMs(tr.best)?`<small class="tsrc">Official: ${esc(tr.best)} · P${tr.pos}</small>`:""}<input type="text" id="n-lap" data-nf="lap" value="${esc(d.lap||"")}" placeholder="${tr&&tr.best?esc(tr.best):"1:24.512"}" inputmode="decimal"></div>
     <div class="q"><label class="lbl" for="n-body">Notes</label><textarea id="n-body" data-nf="body" rows="8" placeholder="Anything you want to remember: feel, set-up, what worked, what to try next.">${esc(d.body||"")}</textarea></div>
+    <div class="q"><div class="lbl">Photos</div><small>Screenshots of data, onboards, the car on track. Just for you.</small>${phStrip(d.ph,{kind:"note",id:n.id,dir:"n",drv:n.driver_id},mine)||`<span class="muted" style="font-size:.86rem">No photos.</span>`}</div>
   </fieldset>
   ${mine?`<div class="nfoot"><label class="share"><input type="checkbox" data-nf="shared" ${n.shared?"checked":""}> Share with Riki</label>${X.open.del===n.id?`<span><button class="btn sm danger" data-xact="n-del">Delete note</button> <button class="btn sm" data-xact="n-keep">Keep</button></span>`:`<button class="btn sm" data-xact="n-ask">Delete</button>`}</div>`:""}
   </div>`;
@@ -261,4 +262,59 @@ document.addEventListener("submit",ev=>{
   if(f.id==="newg") X.list.groups.push({id:uid(),name:v,items:[]});
   else { const g=X.list.groups.find(x=>x.id===f.dataset.g); if(g) g.items.push({id:uid(),t:v,done:false}); }
   saveList(); renderLists(); const again=f.id==="newg"?null:document.querySelector(`form.ladd[data-g="${f.dataset.g}"] input`); if(again) again.focus({preventScroll:true});
+});
+
+/* ---------- photos (private storage bucket rh-photos) ---------- */
+const PHB="rh-photos", PHURL={};
+const phIn=document.createElement("input"); phIn.type="file"; phIn.accept="image/*"; phIn.multiple=true; phIn.hidden=true; document.body.appendChild(phIn);
+let phTarget=null;
+async function shrink(file){
+  const url=URL.createObjectURL(file);
+  try{ const img=await new Promise((ok,no)=>{ const i=new Image(); i.onload=()=>ok(i); i.onerror=no; i.src=url; });
+    const k=Math.min(1,1600/Math.max(img.naturalWidth,img.naturalHeight)), c=document.createElement("canvas");
+    c.width=Math.round(img.naturalWidth*k); c.height=Math.round(img.naturalHeight*k); c.getContext("2d").drawImage(img,0,0,c.width,c.height);
+    return await new Promise(ok=>c.toBlob(ok,"image/jpeg",.82)); }
+  catch(e){ return file.type&&/jpeg|png|webp/.test(file.type)?file:null; }
+  finally{ URL.revokeObjectURL(url); }
+}
+function phStrip(list,t,canAdd){ list=list||[]; if(!list.length&&!canAdd) return "";
+  const attrs=Object.entries({kind:t.kind,k:t.key,path:t.path,id:t.id,dir:t.dir,drv:t.drv}).filter(([,v])=>v!=null).map(([k,v])=>`data-${k}="${esc(v)}"`).join(" ");
+  return `<div class="phs" data-phk="${esc(JSON.stringify(t))}">${list.map(x=>`<button type="button" class="phm" data-xact="ph-view" data-p="${esc(x.p)}" aria-label="Open photo"><img data-ph="${esc(x.p)}" alt=""></button>`).join("")}${canAdd?`<button type="button" class="phadd noprint" data-xact="ph-add" ${attrs}>+ Photo</button>`:""}</div>`; }
+async function fillPhotos(){
+  const imgs=[...document.querySelectorAll("img[data-ph]:not([src])")]; if(!imgs.length) return;
+  const now=Date.now(), need=[...new Set(imgs.map(i=>i.dataset.ph).filter(p=>!(PHURL[p]&&PHURL[p].exp>now)))];
+  if(need.length){ const {data}=await sb.storage.from(PHB).createSignedUrls(need,3600); (data||[]).forEach(r=>{ if(r.signedUrl) PHURL[r.path]={u:r.signedUrl,exp:now+3300e3}; }); }
+  imgs.forEach(i=>{ const c=PHURL[i.dataset.ph]; if(c&&!i.getAttribute("src")) i.src=c.u; });
+}
+new MutationObserver(()=>{ clearTimeout(fillPhotos.t); fillPhotos.t=setTimeout(fillPhotos,30); }).observe(document.getElementById("main"),{childList:true,subtree:true});
+/* where a photo list lives: a brief field, or a note */
+function phList(t){ if(t.kind==="note"){ const n=noteById(t.id); return n?(n.data.ph=n.data.ph||[]):null; }
+  const B=S.briefs[t.key]; if(!B) return null; let L=getP(B.data,t.path); if(!Array.isArray(L)){ L=[]; setP(B.data,t.path,L); } return L; }
+function phSave(t){ if(t.kind==="note"){ const n=noteById(t.id); if(n){ saveNote(n,0); renderNote(n.id); } return; }
+  queueSave(t.key,0); const y=scrollY; route(); scrollTo(0,y); }
+phIn.addEventListener("change",async()=>{
+  const files=[...phIn.files]; phIn.value=""; const t=phTarget; phTarget=null; if(!t||!files.length) return;
+  xsync(`Uploading ${files.length} photo${files.length>1?"s":""}…`); let ok=0;
+  for(const f of files){ const blob=await shrink(f); if(!blob) continue; const p=`${t.dir}/${t.drv}/${uid()}.jpg`;
+    const {error}=await sb.storage.from(PHB).upload(p,blob,{contentType:"image/jpeg",upsert:false});
+    if(error){ console.warn(error); continue; } const L=phList(t); if(L){ L.push({p,t:Date.now()}); ok++; } }
+  if(ok) phSave(t); xsync(ok?"Saved":"Photo not uploaded · check signal",ok?"ok":"bad"); if(!ok) toast("Couldn't upload the photo. Check signal and try again.");
+});
+function lbOpen(p,t){
+  const own=t&&(isCoach()||(myDriver()&&p.split("/")[1]===myDriver().id));
+  let el=$("#lb"); if(!el){ el=document.createElement("div"); el.id="lb"; el.className="lb"; document.body.appendChild(el); }
+  el.innerHTML=`<div class="lbin"><img alt="Photo" src="${esc((PHURL[p]||{}).u||"")}"><div class="lbbar"><button class="btn" data-xact="lb-close">✕ Close</button>${own?(X.open.phdel===p?`<button class="btn danger" data-xact="ph-del">Delete photo</button>`:`<button class="btn" data-xact="ph-ask">Delete</button>`):""}</div></div>`;
+  el.hidden=false; el.dataset.p=p; X.lbT=t;
+}
+function lbClose(){ const el=$("#lb"); if(el){ el.hidden=true; el.innerHTML=""; } X.open.phdel=null; X.lbT=null; }
+document.addEventListener("keydown",e=>{ if(e.key==="Escape") lbClose(); });
+document.addEventListener("click",async ev=>{
+  const lb=ev.target.closest("#lb"); if(lb&&(ev.target===lb||ev.target.classList.contains("lbin"))){ lbClose(); return; }
+  const b=ev.target.closest("[data-xact]"); if(!b) return; const a=b.dataset.xact;
+  if(a==="ph-add"){ phTarget={kind:b.dataset.kind,key:b.dataset.k,path:b.dataset.path,id:b.dataset.id,dir:b.dataset.dir,drv:b.dataset.drv}; phIn.click(); return; }
+  if(a==="ph-view"){ const holder=b.closest("[data-phk]"); const t=holder?JSON.parse(holder.dataset.phk):null; lbOpen(b.dataset.p,t); return; }
+  if(a==="lb-close"){ lbClose(); return; }
+  if(a==="ph-ask"){ X.open.phdel=$("#lb").dataset.p; lbOpen(X.open.phdel,X.lbT); return; }
+  if(a==="ph-del"){ const p=$("#lb").dataset.p, t=X.lbT; const L=t&&phList(t); if(L){ const i=L.findIndex(x=>x.p===p); if(i>=0) L.splice(i,1); }
+    sb.storage.from(PHB).remove([p]); lbClose(); if(t) phSave(t); return; }
 });
