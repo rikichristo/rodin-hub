@@ -104,10 +104,12 @@ select:focus,textarea:focus,input:focus{border-color:var(--ink);outline:none}
 const SURVEY = "preload-2026";
 const DRIVERS = ["Abbi Pulling","Alessandro Giusti","Alex Dunne","Alex Ninovic","Alfie Slater","Brando Badoer","Cameron Campbell","Christian Ho","Dries Van Langendonck","Ella Lloyd","Ella Stevens","Emma Felbermayr","Ethan Lennon","Gabriel Gomez","Josh Buchan","Martin Molnar","Martinius Stenshorne","Maxim Rehm","Pedro Clerot","Reza Seewooruthun"];
 const QS = [
-  ["good","What part of Preload finds you lap time?"],
-  ["bad","What annoys you most about it?"],
-  ["letdown","Has it ever let you down? What happened?"],
-  ["change","One thing you'd change or add?"]
+  ["useful","What's on Preload that you find useful?"],
+  ["missing","What isn't on Preload that you would find useful?"],
+  ["not_useful","What's on Preload that you don't find useful?"],
+  ["bugs","Have you noticed any bugs, glitches or annoyances while using Preload?"],
+  ["change","What would you change or add? List as many as you like."],
+  ["usage","How much do you use Preload? Before, during or after events?"]
 ];
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -132,8 +134,8 @@ function formView(){
   $("#main").innerHTML = `
   <div class="intro">
     <span class="eyebrow">Preload app · driver feedback</span>
-    <h1>Tell us straight</h1>
-    <p>Two minutes, no wrong answers. Good, bad, what to fix. Be as blunt as you like.</p>
+    <h1>Preload feedback</h1>
+    <p>Thanks for taking a few minutes on this. We want to make Preload genuinely useful for you, so please give us direct, honest answers, even if they're critical. That's what helps us most.</p>
   </div>
   <form id="f" novalidate>
     <div style="display:grid;gap:12px">
@@ -150,7 +152,7 @@ function formView(){
         <textarea id="a-${k}" data-k="${k}" maxlength="3000" rows="3">${esc(draft[k]||"")}</textarea>
       </div>`).join("")}
       <div class="q" id="q-rate">
-        <div class="lbl"><span class="n">05</span><h2>Rate it out of 10</h2></div>
+        <div class="lbl"><span class="n">07</span><h2>Overall, rate Preload out of 10</h2></div>
         <div class="rate" role="group" aria-label="Rating out of 10">
           ${Array.from({length:10},(_,i)=>`<button type="button" data-r="${i+1}" aria-pressed="${draft.rating===i+1}">${i+1}</button>`).join("")}
         </div>
