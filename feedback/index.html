@@ -9,13 +9,12 @@
 <link rel="icon" href="../img/icon.png">
 <link rel="apple-touch-icon" href="../img/icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Michroma&family=Archivo:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap">
 <style>
 :root{
   --bg:#000; --panel:#0B0B0C; --ink:#FFF; --soft:#D6D6D8; --muted:#94949A; --faint:#55555B;
   --line:#1E1E21; --line2:#34343A; --ok:#3CCB7F; --warn:#FFB23F; --bad:#FF5A4E;
-  --display:"Michroma","Eurostile","Arial Black",system-ui,sans-serif;
-  --body:"Archivo",system-ui,-apple-system,"Segoe UI",sans-serif;
+    --body:"Archivo",system-ui,-apple-system,"Segoe UI",sans-serif;
   --mono:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
   color-scheme:dark;
 }
@@ -26,14 +25,13 @@ button,input,textarea,select{font:inherit;color:inherit}
 button{cursor:pointer}
 :focus-visible{outline:2px solid var(--ink);outline-offset:2px}
 .wrap{max-width:620px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
-h1,h2{font-family:var(--display);font-weight:400;margin:0;text-transform:uppercase;letter-spacing:.04em;text-wrap:balance}
-h1{font-size:1.1rem}h2{font-size:.85rem;line-height:1.5}
+h1,h2{font-family:var(--body);margin:0;text-wrap:balance}
+h1{font-size:1.45rem;font-weight:700;letter-spacing:-.01em}h2{font-size:1.02rem;font-weight:600;line-height:1.4}
 .eyebrow{font-family:var(--mono);font-size:.64rem;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
 
 header.top{position:sticky;top:0;z-index:30;background:rgba(0,0,0,.94);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-bottom:1px solid var(--line);padding-top:env(safe-area-inset-top,0px)}
 .brand{display:flex;align-items:center;justify-content:center;gap:10px;padding-top:12px;padding-bottom:12px;background:none;border:0;width:100%}
-.brand img{height:16px;width:auto;display:block}.brand img.rodin{height:21px}
-.brand .x{font-family:var(--mono);color:var(--faint);font-size:.75rem}
+.brand img{height:24px;width:auto;display:block}
 button.brand{cursor:pointer}
 
 main{padding-top:22px;padding-bottom:40px;display:grid;gap:16px}
@@ -73,7 +71,7 @@ select:focus,textarea:focus,input:focus{border-color:var(--ink);outline:none}
 .login{max-width:380px;width:100%;margin:6vh auto 0;display:grid;gap:10px;border:1px solid var(--line2);border-radius:14px;background:var(--panel);padding:18px}
 .login label{display:grid;gap:5px;font-size:.82rem;color:var(--soft)}
 .sum{display:flex;flex-wrap:wrap;gap:8px 18px;align-items:baseline}
-.sum b{font-family:var(--display);font-weight:400;font-size:1.4rem}
+.sum b{font-weight:700;font-size:1.4rem}
 .sum span{font-family:var(--mono);font-size:.64rem;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
 .tools{display:flex;gap:8px;flex-wrap:wrap}
 .tools select{width:auto;flex:1 1 200px}
@@ -95,7 +93,7 @@ select:focus,textarea:focus,input:focus{border-color:var(--ink);outline:none}
 <body>
 <header class="top"><div class="wrap" id="brandSlot"></div></header>
 <main class="wrap" id="main"></main>
-<footer class="wrap">VCASO PERFORMANCE × RODIN MOTORSPORT · PRELOAD FEEDBACK 2026</footer>
+<footer class="wrap">RODIN MOTORSPORT · PRELOAD FEEDBACK 2026</footer>
 <div id="toast" class="toast" hidden></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
@@ -119,7 +117,7 @@ try { sb = supabase.createClient(window.RH_CONFIG.url, window.RH_CONFIG.key, {au
 let toastT; function toast(t){ const el=$("#toast"); el.textContent=t; el.hidden=false; clearTimeout(toastT); toastT=setTimeout(()=>el.hidden=true,2800); }
 
 function brand(home){
-  const inner = `<img src="../img/vcaso.png" alt="VCASO Performance"><span class="x">×</span><img class="rodin" src="../img/rodin.png" alt="Rodin Motorsport">`;
+  const inner = `<img src="../img/rodin.png" alt="Rodin Motorsport">`;
   $("#brandSlot").innerHTML = home ? `<div class="brand">${inner}</div>` : `<button class="brand" type="button" aria-label="Back to the feedback form" onclick="location.hash=''">${inner}</button>`;
 }
 
