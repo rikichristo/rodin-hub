@@ -78,24 +78,27 @@ function noEv(){ return `<div class="notice"><b>Your account isn't linked to a d
 async function loadNotes(force){
   if(X.notes&&!force) return X.notes;
   const q=sb.from("rh_dnotes").select("*").order("created_at",{ascending:false});
-  const {data,error}=isCoach()?await q.eq("shared",true):await q.eq("user_id",S.user.id);
+  const {data,error}=isStaff()?await q:await q.eq("user_id",S.user.id);
   X.notes=error?[]:(data||[]); return X.notes;
 }
 function noteTitle(n){ const d=n.data||{}; return d.title||(d.body||"").split("\n")[0].slice(0,60)||"Untitled note"; }
 async function renderNotes(){
-  if(!isCoach()&&!myDriver()){ $("#main").innerHTML=noEv(); return; }
-  $("#main").innerHTML=(isCoach()?"":navHTML("notes"))+`<div class="notice">Loading…</div>`;
+  if(!isStaff()&&!myDriver()){ $("#main").innerHTML=noEv(); return; }
+  $("#main").innerHTML=(isStaff()?"":navHTML("notes"))+`<div class="notice">Loading…</div>`;
   const L=await loadNotes(); if(S.route[0]!=="notes"||S.route[1]) return;
-  if(isCoach()){ $("#main").innerHTML=`<div class="noprint"><a class="link" href="#/">← All drivers</a></div><h1 class="ph">Shared notes</h1>${L.length?`<div class="nlist">${L.map(n=>noteRow(n,true)).join("")}</div>`:`<div class="notice"><b>No shared notes yet.</b><span>Drivers' notes stay private until they tick "Share with Riki".</span></div>`}`; return; }
+  if(isStaff()){ const f=X.nf||"all", drs=S.drivers.filter(d=>L.some(n=>n.driver_id===d.id)), M=L.filter(n=>f==="all"||n.driver_id===f);
+    $("#main").innerHTML=`<div class="noprint"><a class="link" href="#/">← All drivers</a></div><h1 class="ph">Drivers' notes</h1><p class="muted" style="margin:0;font-size:.88rem">${isCoach()?"Every driver's":"Your driver's"} own notes. Tap one to read it, add to it or correct it. The driver sees that you edited it.</p>
+      ${drs.length>1?`<div class="evpick">${[["all","All"],...drs.map(d=>[d.id,"#"+d.car_no+" "+d.full_name.split(" ").slice(-1)[0]])].map(([k,l])=>`<button data-xact="nf" data-v="${k}" aria-pressed="${f===k}">${esc(l)} · ${k==="all"?L.length:L.filter(n=>n.driver_id===k).length}</button>`).join("")}</div>`:""}
+      ${M.length?`<div class="nlist">${M.map(n=>noteRow(n,true)).join("")}</div>`:`<div class="notice"><b>No driver notes yet.</b><span>They appear here as soon as a driver writes one.</span></div>`}`; return; }
   $("#main").innerHTML=`${navHTML("notes")}<div class="phead"><h1 class="ph">My notes</h1><button class="btn primary" data-xact="note-new">+ New note</button></div>
-    <p class="muted" style="margin:0;font-size:.88rem">Your own notes to look back on. Private unless you tick "Share with Riki".</p>
+    <p class="muted" style="margin:0;font-size:.88rem">Your own notes to look back on. Only you, Riki and your engineer see them.</p>
     ${L.length?`<div class="nlist">${L.map(n=>noteRow(n)).join("")}</div>`:`<div class="notice"><b>No notes yet.</b><span>Tap <b>+ New note</b> after a session, a sim day or any time something's worth remembering.</span></div>`}`;
 }
 function noteRow(n,coach){
   const d=n.data||{}, e=S.events.find(x=>x.id===n.event_id), dr=coach?S.drivers.find(x=>x.id===n.driver_id):null;
   const meta=[dr&&("#"+dr.car_no+" "+dr.full_name.split(" ").slice(-1)[0]),e&&evShort(e),d.sk_label,fmtWhen(n.created_at)].filter(Boolean).join(" · ");
   const chips=[...(d.tyres||[]),d.lap&&("⏱ "+d.lap),d.wt_pre!=null&&d.wt_post!=null&&(`${(+d.wt_pre).toFixed(1)}→${(+d.wt_post).toFixed(1)} kg`)].filter(Boolean);
-  return `<a class="nrow" href="#/notes/${n.id}"><b>${esc(noteTitle(n))}</b><small>${esc(meta)}${!coach&&n.shared?" · shared":""}</small>${chips.length?`<span class="nchips">${chips.map(c=>`<span class="tag" data-v="${esc(c)}">${esc(c)}</span>`).join("")}</span>`:""}${d.body?`<span class="nbody">${esc(d.body.slice(0,140))}${d.body.length>140?"…":""}</span>`:""}</a>`;
+  return `<a class="nrow" href="#/notes/${n.id}"><b>${esc(noteTitle(n))}</b><small>${esc(meta)}${n.data&&n.data.ed_by?` · edited by ${esc(n.data.ed_by)}`:""}</small>${chips.length?`<span class="nchips">${chips.map(c=>`<span class="tag" data-v="${esc(c)}">${esc(c)}</span>`).join("")}</span>`:""}${d.body?`<span class="nbody">${esc(d.body.slice(0,140))}${d.body.length>140?"…":""}</span>`:""}</a>`;
 }
 async function newNote(){
   const d=myDriver(); if(!d) return; const evs=myEvents(), t=today();
@@ -104,17 +107,19 @@ async function newNote(){
   if(error){ toast("Couldn't create the note. Check signal and try again."); return; }
   X.notes=[data,...(X.notes||[])]; location.hash="#/notes/"+data.id;
 }
+function canEditNote(n){ return !!n&&(n.user_id===S.user.id||isStaff()); }
 function noteById(id){ return (X.notes||[]).find(n=>n.id===id); }
 async function renderNote(id){
   await loadNotes(); const n=noteById(id);
   if(!n){ $("#main").innerHTML=`<div class="notice"><b>Note not found.</b><a href="#/notes">Back to notes</a></div>`; return; }
-  const mine=n.user_id===S.user.id, d=n.data||(n.data={}), evs=myEvents(), e=S.events.find(x=>x.id===n.event_id), ses=e?(e.sessions||[]):[];
+  const mine=canEditNote(n), own=n.user_id===S.user.id, d=n.data||(n.data={}), nd=S.drivers.find(x=>x.id===n.driver_id), evs=own?myEvents():eventsFor(nd||null).filter(x=>!x.driver_ids||!nd||x.driver_ids.includes(nd.id)), e=S.events.find(x=>x.id===n.event_id), ses=e?(e.sessions||[]):[];
   const ro=!mine?"disabled":"";
   const T=["New","Fresh","Used","Soft","Medium","Hard"], base=d.wt_pre??d.wt_post??70;
   const wbox=(k,l,v)=>`<label class="wbox ${v!=null?"set":""}"><span>${l}</span><b>${v!=null?(+v).toFixed(1)+" kg":"– kg"}</b><select data-nf="${k}" data-num aria-label="${l} weight" ${ro}>${WOPTS(v??base)}</select></label>`;
   const diff=d.wt_pre!=null&&d.wt_post!=null?d.wt_post-d.wt_pre:null;
   const tr=e&&d.sk?tRow(e.id,d.sk,myDriver()||S.drivers.find(x=>x.id===n.driver_id)):null;
-  $("#main").innerHTML=`${mine?navHTML("notes"):""}<div class="noprint"><a class="link" href="#/notes">← ${mine?"My notes":"Shared notes"}</a></div>
+  $("#main").innerHTML=`${own?navHTML("notes"):""}<div class="noprint"><a class="link" href="#/notes">← ${own?"My notes":"Drivers' notes"}</a></div>
+  ${!own&&nd?`<div class="evhead"><span class="meta">#${esc(nd.car_no)} ${esc(nd.full_name)} · ${esc(fmtWhen(n.created_at))}</span></div>`:""}${d.ed_by?`<div class="notice edited"><span>Edited by ${esc(d.ed_by)} · ${esc(fmtWhen(d.ed_at))}</span></div>`:""}
   <div class="card note" id="nform" data-id="${n.id}"><fieldset class="ro" ${ro}>
     <div class="q"><label class="lbl" for="n-title">Title</label><input type="text" id="n-title" data-nf="title" value="${esc(d.title||"")}" placeholder="e.g. Day 1 PM · long run"></div>
     <div class="q"><div class="lbl">Event &amp; session</div><div class="two">
@@ -126,15 +131,16 @@ async function renderNote(id){
     <div class="q"><div class="lbl">Weight</div><div class="wrow">${wbox("wt_pre","Before",d.wt_pre)}${wbox("wt_post","After",d.wt_post)}<div class="wdiff ${diff==null?"":diff<0?"down":"up"}"><span>Change</span><b>${diff==null?"–":(diff>0?"+":diff<0?"−":"±")+Math.abs(diff).toFixed(1)+" kg"}</b></div></div></div>
     <div class="q"><label class="lbl" for="n-lap">Best lap</label>${tr&&lapMs(tr.best)?`<small class="tsrc">Official: ${esc(tr.best)} · P${tr.pos}</small>`:""}<input type="text" id="n-lap" data-nf="lap" value="${esc(d.lap||"")}" placeholder="${tr&&tr.best?esc(tr.best):"1:24.512"}" inputmode="decimal"></div>
     <div class="q"><label class="lbl" for="n-body">Notes</label><textarea id="n-body" data-nf="body" rows="8" placeholder="Anything you want to remember: feel, set-up, what worked, what to try next.">${esc(d.body||"")}</textarea></div>
-    <div class="q"><div class="lbl">Photos</div><small>Screenshots of data, onboards, the car on track. Just for you.</small>${phStrip(d.ph,{kind:"note",id:n.id,dir:"n",drv:n.driver_id},mine)||`<span class="muted" style="font-size:.86rem">No photos.</span>`}</div>
+    <div class="q"><div class="lbl">Photos</div><small>Screenshots of data, onboards, the car on track.</small>${phStrip(d.ph,{kind:"note",id:n.id,dir:"n",drv:n.driver_id},mine)||`<span class="muted" style="font-size:.86rem">No photos.</span>`}</div>
   </fieldset>
-  ${mine?`<div class="nfoot"><label class="share"><input type="checkbox" data-nf="shared" ${n.shared?"checked":""}> Share with Riki</label>${X.open.del===n.id?`<span><button class="btn sm danger" data-xact="n-del">Delete note</button> <button class="btn sm" data-xact="n-keep">Keep</button></span>`:`<button class="btn sm" data-xact="n-ask">Delete</button>`}</div>`:""}
+  ${own?`<div class="nfoot"><span class="muted" style="font-size:.84rem">Saves as you type.</span>${X.open.del===n.id?`<span><button class="btn sm danger" data-xact="n-del">Delete note</button> <button class="btn sm" data-xact="n-keep">Keep</button></span>`:`<button class="btn sm" data-xact="n-ask">Delete</button>`}</div>`:""}
   </div>`;
   document.querySelectorAll("#nform textarea").forEach(autosize);
-  if(mine&&!d.wx&&e&&e.lat!=null){ const ss=ses.find(s=>s.key===d.sk); const date=(ss&&ss.date)||(n.created_at||"").slice(0,10); const hr=ss?sessHour(ss):new Date(n.created_at).getHours();
+  if(own&&!d.wx&&e&&e.lat!=null){ const ss=ses.find(s=>s.key===d.sk); const date=(ss&&ss.date)||(n.created_at||"").slice(0,10); const hr=ss?sessHour(ss):new Date(n.created_at).getHours();
     if(date>=e.date_from&&date<=(e.date_to||e.date_from)&&date<=today()) wxAt(e.lat,e.lon,date,hr).then(w=>{ if(!w||noteById(n.id)!==n||n.data.wx) return; n.data.wx=w; saveNote(n,0); const el=$("#n-wx"); if(el) el.innerHTML=wxLine(w); }); }
 }
 function saveNote(n,delay=700){
+  if(isStaff()&&n.user_id!==S.user.id){ n.data.ed_by=(S.profile.full_name||"").split(" ")[0]||"Staff"; n.data.ed_at=new Date().toISOString(); }
   clearTimeout(X.saveT[n.id]); xsync("Saving…");
   X.saveT[n.id]=setTimeout(async()=>{ const {error}=await sb.from("rh_dnotes").update({data:n.data,event_id:n.event_id||null,shared:!!n.shared,updated_at:new Date().toISOString()}).eq("id",n.id); xsync(error?"Not saved · try again":"Saved",error?"bad":"ok"); },delay);
 }
@@ -224,7 +230,8 @@ document.addEventListener("click",async ev=>{
   if(a==="note-new"){ newNote(); return; }
   if(a==="x-cancel"){ X.open={}; route(); return; }
   const nf=b.closest("#nform"), n=nf&&noteById(nf.dataset.id);
-  if(n&&n.user_id===S.user.id){
+  if(a==="nf"){ X.nf=b.dataset.v; renderNotes(); return; }
+  if(n&&canEditNote(n)){
     if(a==="n-tyre"){ const L=n.data.tyres||[]; n.data.tyres=L.includes(b.dataset.v)?L.filter(x=>x!==b.dataset.v):[...L,b.dataset.v]; b.setAttribute("aria-pressed",n.data.tyres.includes(b.dataset.v)); saveNote(n); return; }
     if(a==="n-ask"){ X.open.del=n.id; renderNote(n.id); return; }
     if(a==="n-keep"){ X.open.del=null; renderNote(n.id); return; }
@@ -246,7 +253,7 @@ document.addEventListener("click",async ev=>{
 document.addEventListener("input",ev=>{
   const t=ev.target;
   if(t.dataset.ef!=null&&X.ef){ X.ef[t.dataset.ef]=t.value; if(t.dataset.ef==="track"||t.dataset.ef==="from"||t.dataset.ef==="to") renderEvForm(X.ef.id); return; }
-  const nf=t.closest&&t.closest("#nform"); if(!nf||t.dataset.nf==null) return; const n=noteById(nf.dataset.id); if(!n||n.user_id!==S.user.id) return;
+  const nf=t.closest&&t.closest("#nform"); if(!nf||t.dataset.nf==null) return; const n=noteById(nf.dataset.id); if(!n||!canEditNote(n)) return;
   const k=t.dataset.nf;
   if(t.matches("textarea")) autosize(t);
   if(k==="shared"){ n.shared=t.checked; saveNote(n,0); toast(t.checked?"Shared with Riki.":"Private again."); return; }
@@ -255,7 +262,7 @@ document.addEventListener("input",ev=>{
   if(t.matches("select[data-num]")){ n.data[k]=t.value===""?null:+t.value; saveNote(n,0); renderNote(n.id); return; }
   n.data[k]=t.value; saveNote(n);
 });
-document.addEventListener("focusout",ev=>{ const t=ev.target; if(!t.matches||!t.matches("#nform select[data-num]")) return; const n=noteById(t.closest("#nform").dataset.id); if(n&&n.user_id===S.user.id&&n.data[t.dataset.nf]==null) t.dispatchEvent(new Event("input",{bubbles:true})); });
+document.addEventListener("focusout",ev=>{ const t=ev.target; if(!t.matches||!t.matches("#nform select[data-num]")) return; const n=noteById(t.closest("#nform").dataset.id); if(n&&canEditNote(n)&&n.data[t.dataset.nf]==null) t.dispatchEvent(new Event("input",{bubbles:true})); });
 document.addEventListener("submit",ev=>{
   const f=ev.target; if(!f.classList||!f.classList.contains("ladd")) return; ev.preventDefault();
   const inp=f.querySelector("input"), v=(inp.value||"").trim(); if(!v||!X.list) return;
