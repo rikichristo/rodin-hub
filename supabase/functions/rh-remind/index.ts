@@ -1,4 +1,4 @@
-// Rodin Hub reminders: web push to drivers after each session and at the end of the day.
+// VCASO Driver Hub reminders: web push to drivers after each session and at the end of the day.
 // Called every 5 minutes by pg_cron (header x-cron), or by a signed-in user with {test:true}.
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.45.4";
@@ -107,7 +107,7 @@ Deno.serve(async (req) => {
   const { data: u } = await sb.auth.getUser(jwt);
   if (!u?.user) return json({ error: "not signed in" }, 401);
   if (body.test) {
-    const n = await pushUser(u.user.id, { title: "Rodin Hub reminders are on ✓", body: "You'll get a nudge after each session and at the end of the day.", url: SITE, tag: "rh-test" });
+    const n = await pushUser(u.user.id, { title: "VCASO Driver Hub reminders are on ✓", body: "You'll get a nudge after each session and at the end of the day.", url: SITE, tag: "rh-test" });
     return json({ sent: n });
   }
   if (body.key) return json({ key: c.vapid_public });

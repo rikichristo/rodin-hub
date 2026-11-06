@@ -1,4 +1,4 @@
-/* Rodin Hub · Pre-Event Brief, Event Brief, Post-Event Report */
+/* VCASO Driver Hub · Pre-Event Brief, Event Brief, Post-Event Report */
 const sb = supabase.createClient(window.RH_CONFIG.url, window.RH_CONFIG.key, {auth:{persistSession:true,autoRefreshToken:true}});
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -99,7 +99,8 @@ async function loadAll(){
     const cur=S.briefs[p.key]; if(!cur || new Date(cur.updated_at).getTime() < p.at){ S.briefs[p.key]=Object.assign({},cur||{},p.row); queueSave(p.key,0); } else ls.set(k.slice(3),null); });
 }
 const isCoach = () => S.profile && S.profile.role==="coach";
-const isEng = () => S.profile && (S.profile.role==="engineer"||S.profile.role==="trainer");
+const isEng = () => S.profile && ["engineer","trainer","manager"].includes(S.profile.role);
+const isMgr = () => S.profile && S.profile.role==="manager";
 const isStaff = () => isCoach()||isEng();
 const sentTo = () => "Riki"+(S.engNames?" & "+S.engNames:"");
 const myDriver = () => S.drivers.find(d=>d.id===S.profile.driver_id);
@@ -122,7 +123,7 @@ async function flush(key){
 
 /* ---------- auth ---------- */
 function loginHTML(msg){
-  return `<div class="login"><h1>Driver Hub</h1><p>Sign in with the username and password Riki gave you.</p>
+  return `<div class="login"><h1>VCASO Driver Hub</h1><p>Sign in with the username and password Riki gave you.</p>
   <form id="loginForm"><label>Username<input type="text" id="lgEmail" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="e.g. reza" required></label>
   <label>Password<input type="password" id="lgPass" autocomplete="current-password" required></label>
   ${msg?`<div class="err">${esc(msg)}</div>`:""}<button class="btn primary big" type="submit">Sign in</button></form>
@@ -166,8 +167,8 @@ function pushCard(){
   const st=PUSH.state; if(!st||st==="nosupport") return "";
   const who=isStaff()?"Get the same reminders as the drivers on this phone.":"A nudge 10 minutes after each session and at the end of the day, only if your report isn't sent.";
   if(st==="install") return `<div class="card push"><div class="card-h"><h2>Reminders</h2><span class="eyebrow">This phone</span></div><p class="muted" style="margin:0;font-size:.9rem">${who}</p>
-    <ol class="steps2"><li>Tap <b>Share</b> <span class="ico">⬆︎</span> at the bottom of Safari.</li><li>Tap <b>Add to Home Screen</b>, then <b>Add</b>.</li><li>Open <b>Rodin Hub</b> from the new icon and tap <b>Turn on reminders</b>.</li></ol></div>`;
-  if(st==="denied") return `<div class="card push"><div class="card-h"><h2>Reminders</h2><span class="eyebrow">Blocked</span></div><p class="muted" style="margin:0;font-size:.9rem">Notifications are switched off for Rodin Hub. Open <b>Settings → Notifications → Rodin Hub</b> and allow them, then come back here.</p></div>`;
+    <ol class="steps2"><li>Tap <b>Share</b> <span class="ico">⬆︎</span> at the bottom of Safari.</li><li>Tap <b>Add to Home Screen</b>, then <b>Add</b>.</li><li>Open <b>VCASO Driver Hub</b> from the new icon and tap <b>Turn on reminders</b>.</li></ol></div>`;
+  if(st==="denied") return `<div class="card push"><div class="card-h"><h2>Reminders</h2><span class="eyebrow">Blocked</span></div><p class="muted" style="margin:0;font-size:.9rem">Notifications are switched off for VCASO Driver Hub. Open <b>Settings → Notifications → VCASO Driver Hub</b> and allow them, then come back here.</p></div>`;
   if(st==="on") return `<div class="card push on"><div class="card-h"><h2>Reminders</h2><span class="chip sent">On</span><div class="r"><button class="btn sm" data-act="push-test">Send a test</button></div></div><p class="muted" style="margin:0;font-size:.86rem">${who}</p></div>`;
   return `<div class="card push"><div class="card-h"><h2>Reminders</h2><span class="eyebrow">Off on this phone</span></div><p class="muted" style="margin:0;font-size:.9rem">${who}</p><button class="btn primary big" data-act="push-on" ${PUSH.busy?"disabled":""}>${PUSH.busy?"Turning on…":"Turn on reminders"}</button></div>`;
 }
@@ -189,7 +190,7 @@ window.addEventListener("hashchange",()=>{ if(S.profile) { route(); scrollTo(0,0
 
 function renderBar(){
   const p=S.profile, d=myDriver();
-  $("#bar").innerHTML=`<div class="who">${d?`<span class="no">${esc(d.car_no)}</span>`:""}<span><b>${esc(d?d.full_name:p.full_name)}</b><small>${esc(isCoach()?"Head of Coaching Performance":p.role==="driver"?"Driver":p.role==="engineer"?"Race engineer":p.role)}</small></span></div>
+  $("#bar").innerHTML=`<div class="who">${d?`<span class="no">${esc(d.car_no)}</span>`:""}<span><b>${esc(d?d.full_name:p.full_name)}</b><small>${esc(isCoach()?"Head of Coaching Performance":p.role==="driver"?"Driver":p.role==="engineer"?"Race engineer":p.role==="manager"?"Team Manager":p.role)}</small></span></div>
     <a class="btn sm" href="#/">⌂ Home</a>${S.route&&S.route[0]==="account"?"":`<button class="btn sm" data-act="account">Account</button>`}`;
 }
 
@@ -221,11 +222,11 @@ function renderCoach(){
   const drs=S.drivers.filter(d=>(!e.series_id||d.series_id===e.series_id)&&(!e.driver_ids||e.driver_ids.includes(d.id)));
   const sent=k=>drs.filter(d=>brief(e.id,d.id,k).status==="sent").length;
   $("#main").innerHTML=`${evPicker(list,e.id)}${evHead(e)}
-    <div class="card"><div class="card-h"><h2>${isEng()?(drs.length>1?"Your drivers":"Your driver"):"Drivers"}</h2><span class="eyebrow">Pre ${sent("pre")}/${drs.length} · Event ${sent("event")}/${drs.length} · Post ${sent("post")}/${drs.length}</span></div>
+    <div class="card"><div class="card-h"><h2>${isEng()&&!isMgr()?(drs.length>1?"Your drivers":"Your driver"):"Drivers"}</h2><span class="eyebrow">Pre ${sent("pre")}/${drs.length} · Event ${sent("event")}/${drs.length} · Post ${sent("post")}/${drs.length}</span></div>
     <div class="grid">${drs.map(d=>`<div class="drow"><div class="h"><span class="no">${esc(d.car_no)}</span><b>${esc(d.full_name)}</b>${isCoach()&&S.engOf[d.id]?`<small class="eng">Eng · ${esc(S.engOf[d.id].join(", "))}</small>`:""}</div>
       <div class="b3">${Object.entries(KINDS).map(([k,K])=>{const b=brief(e.id,d.id,k);return `<button style="--c:${K.c}" data-act="go" data-href="#/b/${e.id}/${d.id}/${k}" ${isEng()&&!(S.briefs[bkey(e.id,d.id,k)])?"disabled":""}><b>${K.title.replace("Post-Event ","Post ").replace("Pre-Event ","Pre ")}</b>${statusChip(b,true)}</button>`}).join("")}</div></div>`).join("")}</div></div>
     ${bestLapsCard(e,drs)}${wxCardHolder(e)}${isEng()?`<div class="sendbox"><a class="btn" href="#/notes">${drs.length>1?"Drivers'":"Driver's"} notes</a></div>`:""}${isCoach()?`<div class="sendbox"><a class="btn" href="#/notes">Drivers' notes</a><a class="btn" href="#/newev">+ Add event</a>${e.owner_driver_id||e.created_by===S.user.id?`<a class="btn" href="#/edev/${e.id}">Edit event</a>`:""}</div>`:""}${pushCard()}
-    <p class="muted" style="font-size:.82rem;margin:0">${isEng()?"Each brief appears here as soon as your driver presses Send. Tap a ✓ to read it.":"Tap any brief to read it. You can edit too; drivers see your changes."}</p>`;
+    <p class="muted" style="font-size:.82rem;margin:0">${isEng()?`Each brief appears here as soon as ${isMgr()?"the driver":"your driver"} presses Send. Tap a ✓ to read it.`:"Tap any brief to read it. You can edit too; drivers see your changes."}</p>`;
   fillWxCard();
 }
 

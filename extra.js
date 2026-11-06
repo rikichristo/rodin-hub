@@ -1,4 +1,4 @@
-/* Rodin Hub · driver's own pages: My notes, Checklist, Add event, and weather */
+/* VCASO Driver Hub · driver's own pages: My notes, Checklist, Add event, and weather */
 
 /* ---------- weather (Open-Meteo, no key) ---------- */
 const WXC={0:["☀️","Clear"],1:["🌤","Mostly clear"],2:["⛅","Partly cloudy"],3:["☁️","Overcast"],45:["🌫","Fog"],48:["🌫","Fog"],51:["🌦","Light drizzle"],53:["🌦","Drizzle"],55:["🌦","Heavy drizzle"],56:["🌧","Freezing drizzle"],57:["🌧","Freezing drizzle"],61:["🌧","Light rain"],63:["🌧","Rain"],65:["🌧","Heavy rain"],66:["🌧","Freezing rain"],67:["🌧","Freezing rain"],71:["🌨","Light snow"],73:["🌨","Snow"],75:["🌨","Heavy snow"],77:["🌨","Snow grains"],80:["🌦","Showers"],81:["🌦","Showers"],82:["⛈","Heavy showers"],85:["🌨","Snow showers"],86:["🌨","Snow showers"],95:["⛈","Thunderstorm"],96:["⛈","Thunderstorm"],99:["⛈","Thunderstorm"]};
@@ -87,11 +87,11 @@ async function renderNotes(){
   $("#main").innerHTML=(isStaff()?"":navHTML("notes"))+`<div class="notice">Loading…</div>`;
   const L=await loadNotes(); if(S.route[0]!=="notes"||S.route[1]) return;
   if(isStaff()){ const f=X.nf||"all", drs=S.drivers.filter(d=>L.some(n=>n.driver_id===d.id)), M=L.filter(n=>f==="all"||n.driver_id===f);
-    $("#main").innerHTML=`<div class="noprint"><a class="link" href="#/">← All drivers</a></div><h1 class="ph">Drivers' notes</h1><p class="muted" style="margin:0;font-size:.88rem">${isCoach()?"Every driver's":"Your driver's"} own notes. Tap one to read it, add to it or correct it. The driver sees that you edited it.</p>
+    $("#main").innerHTML=`<div class="noprint"><a class="link" href="#/">← All drivers</a></div><h1 class="ph">Drivers' notes</h1><p class="muted" style="margin:0;font-size:.88rem">${isCoach()||isMgr()?"Every driver's":"Your driver's"} own notes. ${isMgr()?"Tap one to read it.":"Tap one to read it, add to it or correct it. The driver sees that you edited it."}</p>
       ${drs.length>1?`<div class="evpick">${[["all","All"],...drs.map(d=>[d.id,"#"+d.car_no+" "+d.full_name.split(" ").slice(-1)[0]])].map(([k,l])=>`<button data-xact="nf" data-v="${k}" aria-pressed="${f===k}">${esc(l)} · ${k==="all"?L.length:L.filter(n=>n.driver_id===k).length}</button>`).join("")}</div>`:""}
       ${M.length?`<div class="nlist">${M.map(n=>noteRow(n,true)).join("")}</div>`:`<div class="notice"><b>No driver notes yet.</b><span>They appear here as soon as a driver writes one.</span></div>`}`; return; }
   $("#main").innerHTML=`${navHTML("notes")}<div class="phead"><h1 class="ph">My notes</h1><button class="btn primary" data-xact="note-new">+ New note</button></div>
-    <p class="muted" style="margin:0;font-size:.88rem">Your own notes to look back on. Only you, Riki and your engineer see them.</p>
+    <p class="muted" style="margin:0;font-size:.88rem">Your own notes to look back on. Only you, Riki, your engineer and the team manager see them.</p>
     ${L.length?`<div class="nlist">${L.map(n=>noteRow(n)).join("")}</div>`:`<div class="notice"><b>No notes yet.</b><span>Tap <b>+ New note</b> after a session, a sim day or any time something's worth remembering.</span></div>`}`;
 }
 function noteRow(n,coach){
@@ -107,7 +107,7 @@ async function newNote(){
   if(error){ toast("Couldn't create the note. Check signal and try again."); return; }
   X.notes=[data,...(X.notes||[])]; location.hash="#/notes/"+data.id;
 }
-function canEditNote(n){ return !!n&&(n.user_id===S.user.id||isStaff()); }
+function canEditNote(n){ return !!n&&(n.user_id===S.user.id||isCoach()||(S.profile&&S.profile.role==="engineer")); }
 function noteById(id){ return (X.notes||[]).find(n=>n.id===id); }
 async function renderNote(id){
   await loadNotes(); const n=noteById(id);

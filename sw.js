@@ -1,9 +1,9 @@
-/* Rodin Hub service worker: shows reminder notifications and opens the right page. */
+/* VCASO Driver Hub service worker: shows reminder notifications and opens the right page. */
 self.addEventListener("install", () => self.skipWaiting());
 self.addEventListener("activate", (e) => e.waitUntil(self.clients.claim()));
 self.addEventListener("push", (e) => {
-  let m = {}; try { m = e.data ? e.data.json() : {}; } catch (_) { m = { title: "Rodin Hub", body: e.data ? e.data.text() : "" }; }
-  e.waitUntil(self.registration.showNotification(m.title || "Rodin Hub", { body: m.body || "", icon: "img/icon.png", badge: "img/icon.png", tag: m.tag || "rh", renotify: true, data: { url: m.url || "./" } }));
+  let m = {}; try { m = e.data ? e.data.json() : {}; } catch (_) { m = { title: "VCASO Driver Hub", body: e.data ? e.data.text() : "" }; }
+  e.waitUntil(self.registration.showNotification(m.title || "VCASO Driver Hub", { body: m.body || "", icon: "img/icon.png", badge: "img/icon.png", tag: m.tag || "rh", renotify: true, data: { url: m.url || "./" } }));
 });
 self.addEventListener("notificationclick", (e) => {
   e.notification.close();

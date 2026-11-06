@@ -1,6 +1,6 @@
 {
-  "name": "Rodin Hub",
-  "short_name": "Rodin Hub",
+  "name": "VCASO Driver Hub",
+  "short_name": "Driver Hub",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
